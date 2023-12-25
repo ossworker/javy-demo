@@ -3,12 +3,12 @@ use std::env;
 use std::io::{stdout, Write};
 use std::sync::OnceLock;
 
+use crate::bindings::{load_bindings_into_global, RuntimeError};
 use javy::{json, Runtime};
 use regex::Regex;
-use crate::bindings::{load_bindings_into_global, RuntimeError};
 
-mod handler;
 mod bindings;
+mod handler;
 
 const EXPOSED_PREFIX: &'static str = "ZEN_EXPOSED_";
 // JS polyfill
@@ -27,10 +27,14 @@ fn precompile() -> Runtime {
     // Precompile the Polyfill to bytecode
     let context = runtime.context();
 
-    let dayjs_src = context.compile_global("dayjs.js", include_str!("script/dayjs.js")).unwrap();
+    let dayjs_src = context
+        .compile_global("dayjs.js", include_str!("script/dayjs.js"))
+        .unwrap();
     context.eval_binary(&dayjs_src).expect("load dayjs error");
 
-    let dayjs_src = context.compile_global("big.js", include_str!("script/big.js")).unwrap();
+    let dayjs_src = context
+        .compile_global("big.js", include_str!("script/big.js"))
+        .unwrap();
     context.eval_binary(&dayjs_src).expect("load dayjs error");
 
     let bytecode = context.compile_global("polyfill.js", POLYFILL).unwrap();
@@ -62,14 +66,12 @@ fn identify_type(src: &str) -> JSWorkerType {
     }
 }
 
-
 fn main() {
     println!("Hello, world!");
     let runtime = unsafe { RUNTIME.get_or_init(precompile) };
     let context = runtime.context();
 
     let mut request = String::new();
-
 
     let mut contents = String::new();
 
@@ -82,35 +84,37 @@ fn main() {
         });
         env_vars.insert(String::from("key"), String::from("value"));
         format!(
-            "const __GLOBAL__ENV = {};",
+            "{};const __GLOBAL__ENV = {};",
+            "__setNowDate(Date.now())",
             serde_json::to_string(&env_vars).unwrap()
         )
     };
 
-
     // contents.push_str(&env_src_string);
-    context.eval_global("__GLOBAL__ENV", &env_src_string).unwrap();
+    context
+        .eval_global("__GLOBAL__ENV", &env_src_string)
+        .unwrap();
 
     // let handler_str = "console.log('11111'); result='{\"code\":\"1111\"}'";
 
     // handler.js
-//     let handler_str = "const handler = (input, { dayjs, Big, moment, env }) => {
-//     console.log('input',input);
-//     const momentValid = typeof moment === 'function' && Object.keys(moment).includes('isDayjs');
-//     const dayjsValid = typeof dayjs === 'function' && Object.keys(moment).includes('isDayjs');
-//     const bigjsValid = typeof Big === 'function';
-//
-//     return {
-//         momentValid,
-//         dayjsValid,
-//         bigjsValid,
-//         bigjsTests: [
-//             Big(0.1).add(0.2).eq(0.3),
-//             Big(123.12).mul(0.1).round(2).eq(12.31),
-//         ],
-//         env
-//     };
-// };";
+    //     let handler_str = "const handler = (input, { dayjs, Big, moment, env }) => {
+    //     console.log('input',input);
+    //     const momentValid = typeof moment === 'function' && Object.keys(moment).includes('isDayjs');
+    //     const dayjsValid = typeof dayjs === 'function' && Object.keys(moment).includes('isDayjs');
+    //     const bigjsValid = typeof Big === 'function';
+    //
+    //     return {
+    //         momentValid,
+    //         dayjsValid,
+    //         bigjsValid,
+    //         bigjsTests: [
+    //             Big(0.1).add(0.2).eq(0.3),
+    //             Big(123.12).mul(0.1).round(2).eq(12.31),
+    //         ],
+    //         env
+    //     };
+    // };";
 
     let handler_str = "export default {
     async handler(input, {dayjs, Big, moment,env}) {
@@ -141,19 +145,26 @@ fn main() {
             RuntimeError::InvalidBinding { invalid_export } => {
                 eprintln!("There was an error adding the '{invalid_export}' binding");
             }
-        }
+        },
     }
 
     match identify_type(&contents) {
         JSWorkerType::DefaultExport => {
             let _ = context.eval_module("handler.mjs", &contents).unwrap();
             let _ = context
-                .eval_module("runtime.mjs",
-                             "import {default as handler} from 'handler.mjs';__setNowDate(Date.now());__addHandler(handler.handler);",
-                ).unwrap();
+                .eval_module(
+                    "runtime.mjs",
+                    "import {default as handler} from 'handler.mjs';__addHandler(handler.handler);",
+                )
+                .unwrap();
         }
         _ => {
-            context.eval_global("handler.js", &format!("__setNowDate(Date.now());{};__addHandler(handler);", contents)).unwrap();
+            context
+                .eval_global(
+                    "handler.js",
+                    &format!("{};__addHandler(handler);", contents),
+                )
+                .unwrap();
         }
     }
 
@@ -187,5 +198,7 @@ fn main() {
     let output = json::transcode_output(output_value).unwrap();
 
     // println!("{}", String::from_utf8_lossy(&output));
-    stdout().write_all(&output).expect("Error when returning the response");
+    stdout()
+        .write_all(&output)
+        .expect("Error when returning the response");
 }
