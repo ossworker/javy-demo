@@ -1,24 +1,29 @@
 // use wasmtime::{Config, Engine};
 
-fn main() {
+use wasmtime::component::Component;
+use wasmtime::{Config, Engine};
+
+// #[async_std::main]
+ fn main() {
     println!("Hello, world!");
-    // let mut config = Config::default()
-    //     .async_support(true)
-    //     .wasm_component_model(true);
-    //
-    // let engine = Engine::new(config).unwrap();
+    let mut config = Config::default();
+        config.async_support(true)
+        .wasm_component_model(true);
 
-    let _bytes = include_bytes!("../javy-demo.wasm").to_vec();
+    let engine = Engine::new(&config).unwrap();
 
-    // if wasmparser::Parser::is_core_wasm(&bytes) {
-    //     println!("is core wasm");
-    //     wasmtime::Module::from_binary(&engine, &bytes).expect("load module error");
-    // } else if wasmparser::Parser::is_component(&bytes) {
-    //     println!("is component");
-    //     Component::from_binary(&engine, &bytes).expect("load component error")
-    // } else {
-    //     Err("not support")
-    // }
+    let bytes = include_bytes!("../javy-demo.wasm").to_vec();
+
+    if wasmparser::Parser::is_core_wasm(&bytes) {
+        println!("is core wasm");
+        wasmtime::Module::from_binary(&engine, &bytes).expect("load module error");
+    } else if wasmparser::Parser::is_component(&bytes) {
+        println!("is component");
+        Component::from_binary(&engine, &bytes).expect("load component error");
+    } else {
+        // Err("not support")
+        println!("not support");
+    }
 
     // let wasi_ctx = WasiCtxBuilder::new()
     //     // .envs()
