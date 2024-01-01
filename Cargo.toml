@@ -11,3 +11,4 @@ wasmparser = "0.118.1"
 #tokio = {version = "^1.33.0", features = ["full"]}
 wasmtime = {version = "^16.0.0", features = ["async","component-model"]}
 wasmtime-wasi = {version = "^16.0.0"}
+tokio = { version = "^1.33", features = ["rt", "rt-multi-thread", "macros"] }
