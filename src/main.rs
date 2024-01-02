@@ -43,23 +43,14 @@ impl preview2::WasiView for Host{
 }
 
 
-#[async_std::main]
+// #[async_std::main]
+#[tokio::main]
 async fn main() {
     println!("Hello, world!");
     let engine = ENGINE.deref();
 
     let bytes = include_bytes!("../javy-demo.wasm").to_vec();
-    let component =
-    // if wasmparser::Parser::is_core_wasm(&bytes) {
-        // println!("is core wasm");
-        // wasmtime::Module::from_binary(&engine, &bytes).expect("load module error")
-    // }
-    // else if wasmparser::Parser::is_component(&bytes) {
-    //     println!("is component");
-        Component::from_binary(engine, &bytes).expect("load component error");
-    // } else {
-        // Err("not support")
-    // };
+    let component = Component::from_binary(engine, &bytes).expect("load component error");
 
     let wasi_ctx = WasiCtxBuilder::new()
         // .envs()
