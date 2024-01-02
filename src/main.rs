@@ -1,5 +1,4 @@
 #![feature(lazy_cell)]
-// use wasmtime::{Config, Engine};
 
 use std::ops::Deref;
 use std::sync::{Arc, LazyLock};
@@ -49,7 +48,7 @@ async fn main() {
     println!("Hello, world!");
     let engine = ENGINE.deref();
 
-    let bytes = include_bytes!("../hello-world.wasm").to_vec();
+    let bytes = include_bytes!("../javy-demo.wasm").to_vec();
     let component =
     // if wasmparser::Parser::is_core_wasm(&bytes) {
         // println!("is core wasm");
