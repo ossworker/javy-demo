@@ -8,8 +8,8 @@ use wasmtime_wasi::preview2::{DirPerms, FilePerms, Table, WasiCtx, WasiCtxBuilde
 
 #[derive(Default)]
 struct Host {
-    pub wasi_preview2_ctx: Option<Arc<preview2::WasiCtx>>,
-    wasi_preview2_table: Arc<preview2::Table>,
+    pub wasi_preview2_ctx: Option<Arc<WasiCtx>>,
+    wasi_preview2_table: Arc<Table>,
 }
 
 impl preview2::WasiView for Host{
@@ -43,17 +43,17 @@ async fn main() {
 
     let engine = Engine::new(&config).unwrap();
 
-    let bytes = include_bytes!("../javy-demo.wasm").to_vec();
+    let bytes = include_bytes!("../hello-world.wasm").to_vec();
     let component =
     // if wasmparser::Parser::is_core_wasm(&bytes) {
-    //     println!("is core wasm");
-    //     wasmtime::Module::from_binary(&engine, &bytes).expect("load module error")
+        // println!("is core wasm");
+        // wasmtime::Module::from_binary(&engine, &bytes).expect("load module error")
     // }
     // else if wasmparser::Parser::is_component(&bytes) {
     //     println!("is component");
         Component::from_binary(&engine, &bytes).expect("load component error");
     // } else {
-    //     Err("not support")
+        // Err("not support")
     // };
 
     let wasi_ctx = WasiCtxBuilder::new()
@@ -68,7 +68,7 @@ async fn main() {
             FilePerms::all(),
             ".",
         ).build();
-    let mut table = Table::default();
+    let table = Table::default();
     let host = Host {
         wasi_preview2_ctx: Some(Arc::new(wasi_ctx)),
         wasi_preview2_table: Arc::new(table),
