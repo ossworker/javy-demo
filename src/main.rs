@@ -1,13 +1,15 @@
+// cargo_component_bindings::generate!();
 use std::collections::HashMap;
 use std::env;
 use std::io::{stdout, Write};
 use std::sync::OnceLock;
 
-use crate::bindings::{load_bindings_into_global, RuntimeError};
+use crate::jsbindings::{load_bindings_into_global, RuntimeError};
 use javy::{json, Runtime};
 use regex::Regex;
 
-mod bindings;
+mod jsbindings;
+
 mod handler;
 
 const EXPOSED_PREFIX: &'static str = "ZEN_EXPOSED_";
