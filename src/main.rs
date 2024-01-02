@@ -1,10 +1,21 @@
+#![feature(lazy_cell)]
 // use wasmtime::{Config, Engine};
 
-use std::sync::Arc;
+use std::ops::Deref;
+use std::sync::{Arc, LazyLock};
 use wasmtime::component::Component;
 use wasmtime::{component, Config, Engine, Store};
 use wasmtime_wasi::{Dir, ambient_authority, preview2};
 use wasmtime_wasi::preview2::{DirPerms, FilePerms, Table, WasiCtx, WasiCtxBuilder};
+
+static ENGINE: LazyLock<Engine> = LazyLock::new(||{
+    let mut config = Config::default();
+    config.async_support(true)
+        .wasm_component_model(true)
+        .wasm_multi_memory(true)
+        .wasm_threads(true);
+    Engine::new(&config).unwrap()
+});
 
 #[derive(Default)]
 struct Host {
@@ -33,15 +44,10 @@ impl preview2::WasiView for Host{
 }
 
 
-// #[async_std::main]
 #[async_std::main]
 async fn main() {
     println!("Hello, world!");
-    let mut config = Config::default();
-    config.async_support(true)
-        .wasm_component_model(true);
-
-    let engine = Engine::new(&config).unwrap();
+    let engine = ENGINE.deref();
 
     let bytes = include_bytes!("../hello-world.wasm").to_vec();
     let component =
@@ -51,7 +57,7 @@ async fn main() {
     // }
     // else if wasmparser::Parser::is_component(&bytes) {
     //     println!("is component");
-        Component::from_binary(&engine, &bytes).expect("load component error");
+        Component::from_binary(engine, &bytes).expect("load component error");
     // } else {
         // Err("not support")
     // };
@@ -91,7 +97,5 @@ async fn main() {
         .call_run(&mut store)
         .await
         .unwrap();
-    drop(store);
-
-
+    // drop(store);
 }
