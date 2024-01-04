@@ -1,18 +1,21 @@
 #![feature(lazy_cell)]
 
+use std::{env, fs};
 use std::ops::Deref;
 use std::sync::{Arc, LazyLock};
-use wasmtime::component::Component;
+
 use wasmtime::{component, Config, Engine, Store};
-use wasmtime_wasi::{Dir, ambient_authority, preview2};
+use wasmtime::component::Component;
+use wasmtime_wasi::{ambient_authority, Dir, preview2};
 use wasmtime_wasi::preview2::{DirPerms, FilePerms, Table, WasiCtx, WasiCtxBuilder};
 
-static ENGINE: LazyLock<Engine> = LazyLock::new(||{
+static ENGINE: LazyLock<Engine> = LazyLock::new(|| {
     let mut config = Config::default();
     config.async_support(true)
         .wasm_component_model(true)
         .wasm_multi_memory(true)
-        .wasm_threads(true);
+        .wasm_threads(true)
+        .cache_config_load_default().unwrap();
     Engine::new(&config).unwrap()
 });
 
@@ -22,7 +25,7 @@ struct Host {
     wasi_preview2_table: Arc<Table>,
 }
 
-impl preview2::WasiView for Host{
+impl preview2::WasiView for Host {
     fn table(&self) -> &Table {
         &self.wasi_preview2_table
     }
@@ -48,8 +51,11 @@ impl preview2::WasiView for Host{
 async fn main() {
     println!("Hello, world!");
     let engine = ENGINE.deref();
-
-    let bytes = include_bytes!("../javy-demo.wasm").to_vec();
+    let mut path_buf = env::current_dir().unwrap();
+    path_buf.push("javy-demo.wasm");
+    println!("{:#?}", &path_buf);
+    let bytes = fs::read(path_buf).unwrap();
+    // let bytes = include_bytes!("../javy-demo.wasm").to_vec();
     let component = Component::from_binary(engine, &bytes).expect("load component error");
 
     let wasi_ctx = WasiCtxBuilder::new()
@@ -76,7 +82,7 @@ async fn main() {
 
     preview2::command::add_to_linker(&mut component_linker).unwrap();
 
-    let (comand,_instance) = preview2::command::Command::instantiate_async(
+    let (comand, _instance) = preview2::command::Command::instantiate_async(
         &mut store,
         &component,
         &component_linker,
