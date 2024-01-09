@@ -1,18 +1,17 @@
 #![feature(lazy_cell)]
 
-mod runtime;
-mod errors;
-mod modules;
-
 use std::{env, fs};
 use std::ops::Deref;
 use std::sync::LazyLock;
 use std::time::Instant;
 
-use wasmtime::{component, Config, Engine, Store};
+use wasmtime::{component, Config, Engine, Linker, Module, Store};
 use wasmtime::component::Component;
 use wasmtime_wasi::{ambient_authority, Dir, preview2};
-use wasmtime_wasi::preview2::{DirPerms, FilePerms, Table, WasiCtx, WasiCtxBuilder};
+use wasmtime_wasi::preview2::{DirPerms, FilePerms, WasiCtxBuilder};
+use crate::errors::RuntimeError;
+
+mod errors;
 
 static ENGINE: LazyLock<Engine> = LazyLock::new(|| {
     let mut config = Config::default();
@@ -25,53 +24,65 @@ static ENGINE: LazyLock<Engine> = LazyLock::new(|| {
     Engine::new(&config).unwrap()
 });
 
-static COMPONENT: LazyLock<Component> = LazyLock::new(|| {
-    let mut path_buf = env::current_dir().unwrap();
-    path_buf.push("javy-demo.wasm");
-    println!("{:#?}", &path_buf);
-    let bytes = fs::read(path_buf).unwrap();
-    Component::from_binary(ENGINE.deref(), &bytes).expect("load component error")
-});
 
-// #[derive(Default)]
-struct Host {
-    pub wasi_preview2_ctx: WasiCtx,
-    wasi_preview2_table: Table,
+pub enum ModuleOrComponent {
+    Module(Module),
+    Component(Component),
 }
 
-impl preview2::WasiView for Host {
-    fn table(&self) -> &Table {
-        &self.wasi_preview2_table
+// #[derive(Default)]
+struct WasiHostCtx {
+    preview2_ctx: preview2::WasiCtx,
+    preview2_table: preview2::Table,
+    preview1_adapter: preview2::preview1::WasiPreview1Adapter,
+}
+
+impl preview2::WasiView for WasiHostCtx {
+    fn table(&self) -> &preview2::Table {
+        &self.preview2_table
     }
 
-    fn table_mut(&mut self) -> &mut Table {
-        &mut self.wasi_preview2_table
+    fn table_mut(&mut self) -> &mut preview2::Table {
+        &mut self.preview2_table
     }
 
-    fn ctx(&self) -> &WasiCtx {
-        &self.wasi_preview2_ctx
+    fn ctx(&self) -> &preview2::WasiCtx {
+        &self.preview2_ctx
     }
 
-    fn ctx_mut(&mut self) -> &mut WasiCtx {
-        &mut self.wasi_preview2_ctx
+    fn ctx_mut(&mut self) -> &mut preview2::WasiCtx {
+        &mut self.preview2_ctx
     }
-    // fn table(&self) -> &Table {
-    //     &self.wasi_preview2_table
-    // }
-    //
-    // fn table_mut(&mut self) -> &mut Table {
-    //     Arc::get_mut(&mut self.wasi_preview2_table)
-    //         .expect("preview2 is not compatiable with threads")
-    // }
-    //
-    // fn ctx(&self) -> &WasiCtx {
-    //     self.wasi_preview2_ctx.as_ref().unwrap()
-    // }
-    //
-    // fn ctx_mut(&mut self) -> &mut WasiCtx {
-    //     let ctx = self.wasi_preview2_ctx.as_mut().unwrap();
-    //     Arc::get_mut(ctx).expect("preview2 is not compatiable with threads")
-    // }
+}
+
+impl preview2::preview1::WasiPreview1View for WasiHostCtx {
+    fn adapter(&self) -> &preview2::preview1::WasiPreview1Adapter {
+        &self.preview1_adapter
+    }
+
+    fn adapter_mut(&mut self) -> &mut preview2::preview1::WasiPreview1Adapter {
+        &mut self.preview1_adapter
+    }
+}
+
+fn parse_module_or_component(url: &str) -> ModuleOrComponent {
+    let mut path_buf = env::current_dir().unwrap();
+    path_buf.push(url);
+    println!("{:#?}", &path_buf);
+    let bytes = fs::read(path_buf).unwrap();
+    let engine = ENGINE.deref();
+    let module_or_component = if wasmparser::Parser::is_component(&bytes) {
+        Ok(ModuleOrComponent::Component(
+            Component::from_binary(ENGINE.deref(), &bytes).expect("load component error")
+        ))
+    } else if wasmparser::Parser::is_core_wasm(&bytes) {
+        Ok(ModuleOrComponent::Module(
+            Module::from_binary(engine, &bytes).expect("load module error")
+        ))
+    }else {
+        Err(RuntimeError::InvalidWrapper)
+    };
+    module_or_component.unwrap()
 }
 
 
@@ -84,6 +95,7 @@ async fn main() {
     }
     // drop(store);
 }
+
 
 pub async fn run() {
     let now = Instant::now();
@@ -98,25 +110,6 @@ pub async fn run() {
     // println!("read file cost:{:?}ms", first_end);
     // let now = Instant::now();
     // let component = Component::from_binary(engine, &bytes).expect("load component error");
-    let component = COMPONENT.deref();
-
-    let first_end = now.elapsed().as_millis();
-    println!("init cost:{:?}ms", first_end);
-    let now = Instant::now();
-
-    // let bytes = include_bytes!("../javy-demo.wasm").to_vec();
-
-    let mut component_linker = component::Linker::new(&engine);
-
-    let first_end = now.elapsed().as_millis();
-    println!("init 1 cost:{:?}ms", first_end);
-    let now = Instant::now();
-
-    preview2::command::add_to_linker(&mut component_linker).unwrap();
-
-    let first_end = now.elapsed().as_millis();
-    println!("init 2 cost:{:?}ms", first_end);
-    let now = Instant::now();
 
     let wasi_ctx = WasiCtxBuilder::new()
         // .envs()
@@ -131,33 +124,52 @@ pub async fn run() {
             ".",
         )
         .build();
-    let table = Table::default();
 
-    let mut store = Store::new(&engine, Host {
-        wasi_preview2_ctx: wasi_ctx,
-        wasi_preview2_table: table,
+    let mut store = Store::new(&engine, WasiHostCtx {
+        preview2_ctx: wasi_ctx,
+        preview2_table: preview2::Table::default(),
+        preview1_adapter: preview2::preview1::WasiPreview1Adapter::new(),
     });
+
+    let module_or_component = parse_module_or_component("javy-demo.wasm");
+
+    match &module_or_component {
+        ModuleOrComponent::Component(component) => {
+            let mut component_linker = component::Linker::new(&engine);
+            preview2::command::add_to_linker(&mut component_linker).unwrap();
+            let (comand, _instance) = preview2::command::Command::instantiate_async(
+                &mut store,
+                component,
+                &component_linker,
+            ).await.unwrap();
+            let _ = comand
+                .wasi_cli_run()
+                .call_run(&mut store)
+                .await
+                .unwrap();
+        }
+        ModuleOrComponent::Module(module) => {
+            let mut linker: Linker<WasiHostCtx> = Linker::new(&engine);
+            preview2::preview1::add_to_linker_async(&mut linker).unwrap();
+            let func = linker
+                .module_async(&mut store, "", &module)
+                .await.unwrap()
+                .get_default(&mut store, "").unwrap()
+                .typed::<(), ()>(&store).unwrap();
+
+            // Invoke the WASI program default function.
+            func.call_async(&mut store, ()).await.unwrap();
+        }
+    }
+
+    let first_end = now.elapsed().as_millis();
+    println!("init cost:{:?}ms", first_end);
+    let now = Instant::now();
+
+    // let bytes = include_bytes!("../javy-demo.wasm").to_vec();
 
 
     let first_end = now.elapsed().as_millis();
-    println!("init 3 cost:{:?}ms", first_end);
-
+    println!("init 1 cost:{:?}ms", first_end);
     let now = Instant::now();
-
-    let (comand, _instance) = preview2::command::Command::instantiate_async(
-        &mut store,
-        component,
-        &component_linker,
-    ).await.unwrap();
-
-
-
-    let _ = comand
-        .wasi_cli_run()
-        .call_run(&mut store)
-        .await
-        .unwrap();
-
-    let second_end = now.elapsed().as_millis();
-    println!("end cost:{:?}ms", second_end);
 }
