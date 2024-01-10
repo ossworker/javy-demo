@@ -12,6 +12,7 @@ use wasmtime_wasi::preview2::{DirPerms, FilePerms, WasiCtxBuilder};
 use crate::errors::RuntimeError;
 
 mod errors;
+mod stdio;
 
 static ENGINE: LazyLock<Engine> = LazyLock::new(|| {
     let mut config = Config::default();
