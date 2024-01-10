@@ -1,7 +1,7 @@
 cargo_component_bindings::generate!();
 use std::collections::HashMap;
 use std::env;
-use std::io::{stdout, Write};
+use std::io::{Read, stderr, stdin, stdout, Write};
 use std::sync::OnceLock;
 
 use crate::jsbindings::{load_bindings_into_global, RuntimeError};
@@ -69,7 +69,6 @@ fn identify_type(src: &str) -> JSWorkerType {
 }
 
 fn main() {
-    println!("Hello, world!");
     let runtime = unsafe { RUNTIME.get_or_init(precompile) };
     let context = runtime.context();
 
@@ -91,6 +90,8 @@ fn main() {
             serde_json::to_string(&env_vars).unwrap()
         )
     };
+
+    stdin().read_to_string(&mut request).unwrap();
 
     // contents.push_str(&env_src_string);
     context
@@ -194,12 +195,13 @@ fn main() {
     let output_value = global.get_property("result").unwrap();
 
     if !error_value.is_null_or_undefined() {
-        eprintln!("jsError:{}", error_value.as_str_lossy());
+        let error = error_value.as_str_lossy();
+        eprintln!("jsError:{}", &error);
+        stderr().write_all(&error.as_bytes()).expect("js error");
     }
 
     let output = json::transcode_output(output_value).unwrap();
 
-    // println!("{}", String::from_utf8_lossy(&output));
     stdout()
         .write_all(&output)
         .expect("Error when returning the response");
