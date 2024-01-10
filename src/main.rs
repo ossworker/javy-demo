@@ -24,7 +24,6 @@ static ENGINE: LazyLock<Engine> = LazyLock::new(|| {
     Engine::new(&config).unwrap()
 });
 
-
 pub enum ModuleOrComponent {
     Module(Module),
     Component(Component),
@@ -65,6 +64,7 @@ impl preview2::preview1::WasiPreview1View for WasiHostCtx {
     }
 }
 
+
 fn parse_module_or_component(url: &str) -> ModuleOrComponent {
     let mut path_buf = env::current_dir().unwrap();
     path_buf.push(url);
@@ -79,8 +79,8 @@ fn parse_module_or_component(url: &str) -> ModuleOrComponent {
         Ok(ModuleOrComponent::Module(
             Module::from_binary(engine, &bytes).expect("load module error")
         ))
-    }else {
-        Err(RuntimeError::InvalidWrapper)
+    } else {
+        Err(RuntimeError::CannotReadModule)
     };
     module_or_component.unwrap()
 }
@@ -100,16 +100,6 @@ async fn main() {
 pub async fn run() {
     let now = Instant::now();
     let engine = ENGINE.deref();
-
-    // let mut path_buf = env::current_dir().unwrap();
-    // path_buf.push("javy-demo.wasm");
-    // println!("{:#?}", &path_buf);
-    // let bytes = fs::read(path_buf).unwrap();
-    //
-    // let first_end = now.elapsed().as_millis();
-    // println!("read file cost:{:?}ms", first_end);
-    // let now = Instant::now();
-    // let component = Component::from_binary(engine, &bytes).expect("load component error");
 
     let wasi_ctx = WasiCtxBuilder::new()
         // .envs()
@@ -131,10 +121,12 @@ pub async fn run() {
         preview1_adapter: preview2::preview1::WasiPreview1Adapter::new(),
     });
 
-    let module_or_component = parse_module_or_component("javy-demo.wasm");
+    let module_or_component = parse_module_or_component("javy-module.wasm");
+
 
     match &module_or_component {
         ModuleOrComponent::Component(component) => {
+            println!("module_or_component: component");
             let mut component_linker = component::Linker::new(&engine);
             preview2::command::add_to_linker(&mut component_linker).unwrap();
             let (comand, _instance) = preview2::command::Command::instantiate_async(
@@ -149,6 +141,7 @@ pub async fn run() {
                 .unwrap();
         }
         ModuleOrComponent::Module(module) => {
+            println!("module_or_component: module");
             let mut linker: Linker<WasiHostCtx> = Linker::new(&engine);
             preview2::preview1::add_to_linker_async(&mut linker).unwrap();
             let func = linker
@@ -166,7 +159,7 @@ pub async fn run() {
     println!("init cost:{:?}ms", first_end);
     let now = Instant::now();
 
-    // let bytes = include_bytes!("../javy-demo.wasm").to_vec();
+    // let bytes = include_bytes!("../javy-component.wasm").to_vec();
 
 
     let first_end = now.elapsed().as_millis();
