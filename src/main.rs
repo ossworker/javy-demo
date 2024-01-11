@@ -10,9 +10,12 @@ use wasmtime::component::Component;
 use wasmtime_wasi::{ambient_authority, Dir, preview2};
 use wasmtime_wasi::preview2::{DirPerms, FilePerms, WasiCtxBuilder};
 use crate::errors::RuntimeError;
+use crate::io::{WasmInput, WasmOutput};
+use crate::stdio::Stdio;
 
 mod errors;
 mod stdio;
+mod io;
 
 static ENGINE: LazyLock<Engine> = LazyLock::new(|| {
     let mut config = Config::default();
@@ -90,80 +93,99 @@ fn parse_module_or_component(url: &str) -> ModuleOrComponent {
 // #[async_std::main]
 #[tokio::main]
 async fn main() {
+    let handler_str = "export default {
+    async handler(input, {dayjs, Big, moment,env}) {
+        console.log('input', input);
+        const momentValid = typeof moment === 'function' && Object.keys(moment).includes('isDayjs');
+        const dayjsValid = typeof dayjs === 'function' && Object.keys(moment).includes('isDayjs');
+        const bigjsValid = typeof Big === 'function';
+        return {
+            momentValid,
+            dayjsValid,
+            bigjsValid,
+            bigjsTests: [
+                Big(0.1).add(0.2).eq(0.3),
+                Big(123.12).mul(0.1).round(2).eq(12.31),
+            ],
+            env
+        };
+    }
+};";
+
+    let json = "{\"id\":\"abc\",\"name\":\"张三\"}";
     println!("Hello, world!");
     for _i in 0..10 {
-        run().await;
+        run(handler_str,json).await;
     }
     // drop(store);
 }
 
 
-pub async fn run() {
+pub async fn run(js_content: &str, json: &str) {
     let now = Instant::now();
     let engine = ENGINE.deref();
-
-    let wasi_ctx = WasiCtxBuilder::new()
+    let input = serde_json::to_vec(&WasmInput::new(js_content, json)).unwrap();
+    let stdio = Stdio::new(input);
+    let mut wasi_ctx_builder = WasiCtxBuilder::new()
         // .envs()
-        .inherit_stdin()
-        .inherit_stdout()
-        .inherit_stderr()
         .preopened_dir(
             Dir::open_ambient_dir(env::current_dir().unwrap(),
                                   ambient_authority()).unwrap(),
             DirPerms::all(),
             FilePerms::all(),
             ".",
-        )
-        .build();
-
+        );
+    //设置in out error
+    stdio.configure_wasi_ctx(wasi_ctx_builder);
     let mut store = Store::new(&engine, WasiHostCtx {
-        preview2_ctx: wasi_ctx,
+        preview2_ctx: wasi_ctx_builder.build(),
         preview2_table: preview2::Table::default(),
         preview1_adapter: preview2::preview1::WasiPreview1Adapter::new(),
     });
 
     let module_or_component = parse_module_or_component("javy-module.wasm");
 
+    let result = {
+        match &module_or_component {
+            ModuleOrComponent::Component(component) => {
+                println!("module_or_component: component");
+                let mut component_linker = component::Linker::new(&engine);
+                preview2::command::add_to_linker(&mut component_linker).unwrap();
+                let (comand, _instance) = preview2::command::Command::instantiate_async(
+                    &mut store,
+                    component,
+                    &component_linker,
+                ).await.unwrap();
+                let _ = comand
+                    .wasi_cli_run()
+                    .call_run(&mut store)
+                    .await
+                    .unwrap();
+            }
+            ModuleOrComponent::Module(module) => {
+                println!("module_or_component: module");
+                let mut linker: Linker<WasiHostCtx> = Linker::new(&engine);
+                preview2::preview1::add_to_linker_async(&mut linker).unwrap();
+                let func = linker
+                    .module_async(&mut store, "", &module)
+                    .await.unwrap()
+                    .get_default(&mut store, "").unwrap()
+                    .typed::<(), ()>(&store).unwrap();
 
-    match &module_or_component {
-        ModuleOrComponent::Component(component) => {
-            println!("module_or_component: component");
-            let mut component_linker = component::Linker::new(&engine);
-            preview2::command::add_to_linker(&mut component_linker).unwrap();
-            let (comand, _instance) = preview2::command::Command::instantiate_async(
-                &mut store,
-                component,
-                &component_linker,
-            ).await.unwrap();
-            let _ = comand
-                .wasi_cli_run()
-                .call_run(&mut store)
-                .await
-                .unwrap();
+                // Invoke the WASI program default function.
+                func.call_async(&mut store, ()).await.unwrap();
+            }
         }
-        ModuleOrComponent::Module(module) => {
-            println!("module_or_component: module");
-            let mut linker: Linker<WasiHostCtx> = Linker::new(&engine);
-            preview2::preview1::add_to_linker_async(&mut linker).unwrap();
-            let func = linker
-                .module_async(&mut store, "", &module)
-                .await.unwrap()
-                .get_default(&mut store, "").unwrap()
-                .typed::<(), ()>(&store).unwrap();
-
-            // Invoke the WASI program default function.
-            func.call_async(&mut store, ()).await.unwrap();
+        drop(store);
+        if stdio.stderr.contents().is_empty() {
+            WasmOutput::new(true, stdio.stdout.contents().to_vec())
+        } else {
+            WasmOutput::new(false, stdio.stderr.contents().to_vec())
         }
-    }
+    };
 
     let first_end = now.elapsed().as_millis();
     println!("init cost:{:?}ms", first_end);
     let now = Instant::now();
 
-    // let bytes = include_bytes!("../javy-component.wasm").to_vec();
-
-
-    let first_end = now.elapsed().as_millis();
-    println!("init 1 cost:{:?}ms", first_end);
-    let now = Instant::now();
 }
