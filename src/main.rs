@@ -1,4 +1,4 @@
-cargo_component_bindings::generate!();
+// cargo_component_bindings::generate!();
 use std::collections::HashMap;
 use std::env;
 use std::io::{Read, stderr, stdin, stdout, Write};
