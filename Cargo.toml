@@ -5,14 +5,12 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[package.metadata.component]
-package = "workoss:javy-demo"
 
 [dependencies]
-cargo-component-bindings = "0.6"
-javy = { version = "2.1", features = ["json"] }
-regex = "1.10"
-serde_json = "1.0"
+javy = { version = "2.1.0", features = ["json"] }
+regex = "1.10.2"
+serde_json = "1.0.111"
+serde = { version = "1.0.195", features = ["derive"] }
 
 [profile.release]
 codegen-units = 1

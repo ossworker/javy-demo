@@ -20,11 +20,11 @@ pub fn load_bindings_into_global(
                     Ok(JSValue::Null)
                 })
                 .map_err(|_| RuntimeError::InvalidBinding {
-                    invalid_export: "send_http_request".to_string(),
+                    invalid_export: "console.log".to_string(),
                 })?,
         )
         .map_err(|_| RuntimeError::InvalidBinding {
-            invalid_export: "send_http_request".to_string(),
+            invalid_export: "console.log".to_string(),
         })?;
 
     Ok(())

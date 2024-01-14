@@ -1,4 +1,3 @@
-// cargo_component_bindings::generate!();
 use std::collections::HashMap;
 use std::env;
 use std::io::{Read, stderr, stdin, stdout, Write};
@@ -7,6 +6,7 @@ use std::sync::OnceLock;
 use crate::jsbindings::{load_bindings_into_global, RuntimeError};
 use javy::{json, Runtime};
 use regex::Regex;
+use serde::Deserialize;
 
 mod jsbindings;
 
@@ -68,6 +68,12 @@ fn identify_type(src: &str) -> JSWorkerType {
     }
 }
 
+#[derive(Debug,Deserialize)]
+struct WasmInput{
+    js_content: String,
+    input: String,
+}
+
 fn main() {
     let runtime = unsafe { RUNTIME.get_or_init(precompile) };
     let context = runtime.context();
@@ -98,6 +104,8 @@ fn main() {
         .eval_global("__GLOBAL__ENV", &env_src_string)
         .unwrap();
 
+
+
     // let handler_str = "console.log('11111'); result='{\"code\":\"1111\"}'";
 
     // handler.js
@@ -119,26 +127,11 @@ fn main() {
     //     };
     // };";
 
-    let handler_str = "export default {
-    async handler(input, {dayjs, Big, moment,env}) {
-        console.log('input', input);
-        const momentValid = typeof moment === 'function' && Object.keys(moment).includes('isDayjs');
-        const dayjsValid = typeof dayjs === 'function' && Object.keys(moment).includes('isDayjs');
-        const bigjsValid = typeof Big === 'function';
-        return {
-            momentValid,
-            dayjsValid,
-            bigjsValid,
-            bigjsTests: [
-                Big(0.1).add(0.2).eq(0.3),
-                Big(123.12).mul(0.1).round(2).eq(12.31),
-            ],
-            env
-        };
-    }
-};";
+    let input: WasmInput = serde_json::from_str(&request).unwrap();
 
-    contents.push_str(handler_str);
+    println!("--{:#?}--",&input);
+
+    contents.push_str(&input.js_content);
 
     let global = context.global_object().unwrap();
 
@@ -174,9 +167,9 @@ fn main() {
     let global = context.global_object().unwrap();
     let entrypoint = global.get_property("entrypoint").unwrap();
 
-    request.push_str("{\"id\":\"abc\",\"name\":\"张三\"}");
+    // request.push_str("{\"id\":\"abc\",\"name\":\"张三\"}");
 
-    let input_bytes = request.as_bytes();
+    let input_bytes = input.input.as_bytes();
     let input_value = json::transcode_input(context, input_bytes).unwrap();
 
     match entrypoint.call(&global, &[input_value]) {
@@ -200,8 +193,8 @@ fn main() {
         stderr().write_all(&error.as_bytes()).expect("js error");
     }
 
-    let output = json::transcode_output(output_value).unwrap();
 
+    let output = json::transcode_output(output_value).unwrap();
     stdout()
         .write_all(&output)
         .expect("Error when returning the response");
