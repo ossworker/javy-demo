@@ -8,14 +8,17 @@ use std::time::Instant;
 use wasmtime::{component, Config, Engine, Linker, Module, Store};
 use wasmtime::component::Component;
 use wasmtime_wasi::{ambient_authority, Dir, preview2};
-use wasmtime_wasi::preview2::{DirPerms, FilePerms, WasiCtxBuilder};
+use wasmtime_wasi::preview2::{DirPerms, FilePerms};
+
 use crate::errors::RuntimeError;
 use crate::io::{WasmInput, WasmOutput};
+use crate::runtime::CtxBuilder;
 use crate::stdio::Stdio;
 
 mod errors;
 mod stdio;
 mod io;
+mod runtime;
 
 static ENGINE: LazyLock<Engine> = LazyLock::new(|| {
     let mut config = Config::default();
@@ -32,6 +35,7 @@ pub enum ModuleOrComponent {
     Module(Module),
     Component(Component),
 }
+
 
 // #[derive(Default)]
 struct WasiHostCtx {
@@ -112,40 +116,59 @@ async fn main() {
     }
 };";
 
-    let json = "{\"id\":\"abc\",\"name\":\"张三\"}";
-    println!("Hello, world!");
+    let json = "{\"id\":\"1\",\"name\":\"张三\"}";
     for _i in 0..10 {
-        run(handler_str,json).await;
+        run(handler_str, json).await;
     }
     // drop(store);
 }
 
+pub fn prepare_wasi_context(wasi_builder: &mut CtxBuilder) -> anyhow::Result<()> {
+    match wasi_builder {
+        CtxBuilder::Preview2(wasi_builder) => {
+            wasi_builder
+                .preopened_dir(
+                    Dir::open_ambient_dir(env::current_dir().unwrap(),
+                                          ambient_authority()).unwrap(),
+                    DirPerms::all(),
+                    FilePerms::all(),
+                    ".",
+                );
+        }
+    }
+    Ok(())
+}
 
 pub async fn run(js_content: &str, json: &str) {
     let now = Instant::now();
     let engine = ENGINE.deref();
     let input = serde_json::to_vec(&WasmInput::new(js_content, json)).unwrap();
+
+
+    let mut ctx_builder = CtxBuilder::Preview2(preview2::WasiCtxBuilder::new());
+
+    let _ = prepare_wasi_context(&mut ctx_builder);
+
     let stdio = Stdio::new(input);
-    let mut wasi_ctx_builder = WasiCtxBuilder::new()
-        // .envs()
-        .preopened_dir(
-            Dir::open_ambient_dir(env::current_dir().unwrap(),
-                                  ambient_authority()).unwrap(),
-            DirPerms::all(),
-            FilePerms::all(),
-            ".",
-        );
+
     //设置in out error
-    stdio.configure_wasi_ctx(wasi_ctx_builder);
-    let mut store = Store::new(&engine, WasiHostCtx {
-        preview2_ctx: wasi_ctx_builder.build(),
-        preview2_table: preview2::Table::default(),
-        preview1_adapter: preview2::preview1::WasiPreview1Adapter::new(),
-    });
+    let ctx_builder = stdio.configure_wasi_ctx(ctx_builder);
 
-    let module_or_component = parse_module_or_component("javy-module.wasm");
+    let wasi_host_ctx = match ctx_builder {
+        CtxBuilder::Preview2(mut wasi_builder) => {
+            WasiHostCtx {
+                preview2_ctx: wasi_builder.build(),
+                preview2_table: preview2::Table::default(),
+                preview1_adapter: preview2::preview1::WasiPreview1Adapter::new(),
+            }
+        }
+    };
 
-    let result = {
+    let mut store = Store::new(&engine, wasi_host_ctx);
+
+    let module_or_component = parse_module_or_component("javy-demo.wizer.wasm");
+
+    let wasm_output = {
         match &module_or_component {
             ModuleOrComponent::Component(component) => {
                 println!("module_or_component: component");
@@ -178,14 +201,13 @@ pub async fn run(js_content: &str, json: &str) {
         }
         drop(store);
         if stdio.stderr.contents().is_empty() {
-            WasmOutput::new(true, stdio.stdout.contents().to_vec())
-        } else {
             WasmOutput::new(false, stdio.stderr.contents().to_vec())
+        } else {
+            WasmOutput::new(true, stdio.stdout.contents().to_vec())
         }
     };
-
+    println!("result: success: {:#?} body:{:#?}", wasm_output.success, String::from_utf8(wasm_output.data));
     let first_end = now.elapsed().as_millis();
     println!("init cost:{:?}ms", first_end);
     let now = Instant::now();
-
 }

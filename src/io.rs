@@ -20,8 +20,8 @@ impl<'a> WasmInput<'a> {
 
 #[derive(Deserialize, Debug)]
 pub struct WasmOutput {
-    success: bool,
-    data: Vec<u8>,
+    pub(crate) success: bool,
+    pub data: Vec<u8>,
 }
 
 impl WasmOutput {
