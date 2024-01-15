@@ -99,14 +99,11 @@ fn main() {
 
     stdin().read_to_string(&mut request).unwrap();
 
-    // contents.push_str(&env_src_string);
     context
         .eval_global("__GLOBAL__ENV", &env_src_string)
         .unwrap();
 
     let input: WasmInput = serde_json::from_str(&request).unwrap();
-
-    println!("--{:#?}--",&input);
 
     contents.push_str(&input.js_content);
 
@@ -143,8 +140,6 @@ fn main() {
 
     let global = context.global_object().unwrap();
     let entrypoint = global.get_property("entrypoint").unwrap();
-
-    // request.push_str("{\"id\":\"abc\",\"name\":\"张三\"}");
 
     let input_bytes = input.body.as_bytes();
     let input_value = json::transcode_input(context, input_bytes).unwrap();
