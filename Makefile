@@ -19,6 +19,8 @@ opt-min:
 opt-opt:
 	wasm-opt -O4 -o javy-module.opt.wasm javy-module.wasm
 
+	wasm-opt -O4 -o js.opt.wasm js.wizer.wasm
+
 test-input:
 	echo '{"id":"1","name":"李四"}' | wasmtime  .\target\wasm32-wasi\release\javy-demo.wasm
 

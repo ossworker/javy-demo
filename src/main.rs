@@ -166,7 +166,7 @@ pub async fn run(js_content: &str, json: &str) {
 
     let mut store = Store::new(&engine, wasi_host_ctx);
 
-    let module_or_component = parse_module_or_component("js.wizer.wasm");
+    let module_or_component = parse_module_or_component("js.opt.wasm");
 
     let wasm_output = {
         match &module_or_component {
@@ -209,5 +209,4 @@ pub async fn run(js_content: &str, json: &str) {
     println!("result: success: \n{:#?} \nbody:\n{:#?}", wasm_output.success, String::from_utf8(wasm_output.data).unwrap());
     let first_end = now.elapsed().as_millis();
     println!("init cost:{:?}ms", first_end);
-    let now = Instant::now();
 }
