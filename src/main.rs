@@ -165,9 +165,8 @@ fn main() {
     let output_value = global.get_property("result").unwrap();
 
     if !error_value.is_null_or_undefined() {
-        let error = error_value.as_str_lossy();
-        eprintln!("jsError:{}", &error);
-        stderr().write_all(&error.as_bytes()).expect("js error");
+        let error = json::transcode_output(error_value).unwrap();
+        stderr().write_all(&error).expect("js error");
     }
 
 
