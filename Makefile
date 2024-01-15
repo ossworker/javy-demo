@@ -18,3 +18,10 @@ opt-min:
 
 opt-opt:
 	wasm-opt -O4 -o javy-module.opt.wasm javy-module.wasm
+
+test-input:
+	echo '{"id":"1","name":"李四"}' | wasmtime  .\target\wasm32-wasi\release\javy-demo.wasm
+
+	echo '{"input": "{\"desc\":\"input is default\"}", "js_content": "const handler = (input, {dayjs, Big, moment, env}) => { console.log(\"input\", input);return {  env  };};"}' | wasmtime  target/wasm32-wasi/release/javy-demo.wasm
+
+	echo '{"input": "{\"desc\":\"input is default\"}", "js_content": "const handler = (input, {dayjs, Big, moment, env}) => { console.log(\"input\", input);return {  env  };};"}' | wasmtime  javy-module.opt.wasm
