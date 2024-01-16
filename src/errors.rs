@@ -1,4 +1,4 @@
-pub type Result<T> = std::result::Result<T, RuntimeError>;
+// pub type Result<T> = std::result::Result<T, RuntimeError>;
 
 #[derive(Debug)]
 pub enum RuntimeError {

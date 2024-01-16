@@ -171,7 +171,6 @@ pub async fn run(js_content: &str, json: &str) {
     let wasm_output = {
         match &module_or_component {
             ModuleOrComponent::Component(component) => {
-                println!("module_or_component: component");
                 let mut component_linker = component::Linker::new(&engine);
                 preview2::command::add_to_linker(&mut component_linker).unwrap();
                 let (comand, _instance) = preview2::command::Command::instantiate_async(
@@ -186,7 +185,6 @@ pub async fn run(js_content: &str, json: &str) {
                     .unwrap();
             }
             ModuleOrComponent::Module(module) => {
-                println!("module_or_component: module");
                 let mut linker: Linker<WasiHostCtx> = Linker::new(&engine);
                 preview2::preview1::add_to_linker_async(&mut linker).unwrap();
                 let func = linker

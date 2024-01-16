@@ -1,7 +1,6 @@
 use wasmtime_wasi::preview2;
-use wasmtime_wasi::preview2::WasiCtxBuilder;
-use crate::runtime::CtxBuilder;
 
+use crate::runtime::CtxBuilder;
 
 pub struct Stdio {
     pub stdin: Vec<u8>,
