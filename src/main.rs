@@ -159,11 +159,12 @@ fn main() {
     let error_value = global.get_property("error").unwrap();
     let output_value = global.get_property("result").unwrap();
 
+    println!("{:?}",&output_value);
+
     if !error_value.is_null_or_undefined() {
         let error = json::transcode_output(error_value).unwrap();
         stderr().write_all(&error).expect("js error");
     }
-
 
     let output = json::transcode_output(output_value).unwrap();
     stdout()
