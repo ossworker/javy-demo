@@ -4,6 +4,8 @@ use std::{env, fs};
 use std::ops::Deref;
 use std::sync::LazyLock;
 use std::time::Instant;
+use serde::Deserialize;
+use serde_json::Value;
 
 use wasmtime::{component, Config, Engine, Linker, Module, Store};
 use wasmtime::component::Component;
@@ -139,6 +141,13 @@ pub fn prepare_wasi_context(wasi_builder: &mut CtxBuilder) -> anyhow::Result<()>
     Ok(())
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EvaluateResponse {
+    pub output: Value,
+    pub log: Vec<Value>,
+}
+
 pub async fn run(js_content: &str, json: &str) {
     let now = Instant::now();
     let engine = ENGINE.deref();
@@ -204,7 +213,9 @@ pub async fn run(js_content: &str, json: &str) {
             WasmOutput::new(true, stdio.stdout.contents().to_vec())
         }
     };
-    println!("result: success: \n{:#?} \nbody:\n{:#?}", wasm_output.success, String::from_utf8(wasm_output.data).unwrap());
+    let evaluate_response: EvaluateResponse = serde_json::from_slice(wasm_output.data.as_slice()).unwrap();
+    println!("evaluate_response:{:#?}", evaluate_response);
+    // println!("result: success: \n{:#?} \nbody:\n{:#?}", wasm_output.success, String::from_utf8(wasm_output.data).unwrap());
     let first_end = now.elapsed().as_millis();
     println!("init cost:{:?}ms", first_end);
 }
