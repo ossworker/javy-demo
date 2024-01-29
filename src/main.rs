@@ -165,7 +165,6 @@ fn main() {
         let error = json::transcode_output(error_value).unwrap();
         stderr().write_all(&error).expect("js error");
     }
-
     let output = json::transcode_output(output_value).unwrap();
     stdout()
         .write_all(&output)

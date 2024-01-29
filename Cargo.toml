@@ -8,9 +8,9 @@ edition = "2021"
 
 [dependencies]
 javy = { version = "2.1.0", features = ["json"] }
-regex = "1.10.2"
-serde_json = "1.0.111"
-serde = { version = "1.0.195", features = ["derive"] }
+regex = "1.10.3"
+serde_json = "1.0.113"
+serde = { version = "1.0.196", features = ["derive"] }
 
 [profile.release]
 codegen-units = 1
