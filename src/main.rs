@@ -42,16 +42,16 @@ pub enum ModuleOrComponent {
 // #[derive(Default)]
 struct WasiHostCtx {
     preview2_ctx: preview2::WasiCtx,
-    preview2_table: preview2::Table,
+    preview2_table: preview2::ResourceTable,
     preview1_adapter: preview2::preview1::WasiPreview1Adapter,
 }
 
 impl preview2::WasiView for WasiHostCtx {
-    fn table(&self) -> &preview2::Table {
+    fn table(&self) -> &preview2::ResourceTable {
         &self.preview2_table
     }
 
-    fn table_mut(&mut self) -> &mut preview2::Table {
+    fn table_mut(&mut self) -> &mut preview2::ResourceTable {
         &mut self.preview2_table
     }
 
@@ -167,7 +167,7 @@ pub async fn run(js_content: &str, json: &str) {
         CtxBuilder::Preview2(mut wasi_builder) => {
             WasiHostCtx {
                 preview2_ctx: wasi_builder.build(),
-                preview2_table: preview2::Table::default(),
+                preview2_table: preview2::ResourceTable::new(),
                 preview1_adapter: preview2::preview1::WasiPreview1Adapter::new(),
             }
         }
@@ -181,6 +181,7 @@ pub async fn run(js_content: &str, json: &str) {
         match &module_or_component {
             ModuleOrComponent::Component(component) => {
                 let mut component_linker = component::Linker::new(&engine);
+
                 preview2::command::add_to_linker(&mut component_linker).unwrap();
                 let (comand, _instance) = preview2::command::Command::instantiate_async(
                     &mut store,
@@ -213,8 +214,9 @@ pub async fn run(js_content: &str, json: &str) {
             WasmOutput::new(true, stdio.stdout.contents().to_vec())
         }
     };
-    let evaluate_response: EvaluateResponse = serde_json::from_slice(wasm_output.data.as_slice()).unwrap();
-    println!("evaluate_response:{:#?}", evaluate_response);
+    println!("result: success: \n{:#?} \nbody:\n{:#?}", wasm_output.success, String::from_utf8(wasm_output.data).unwrap());
+    // let evaluate_response: EvaluateResponse = serde_json::from_slice(wasm_output.data.as_slice()).unwrap();
+    // println!("evaluate_response:{:#?}", evaluate_response);
     // println!("result: success: \n{:#?} \nbody:\n{:#?}", wasm_output.success, String::from_utf8(wasm_output.data).unwrap());
     let first_end = now.elapsed().as_millis();
     println!("init cost:{:?}ms", first_end);
