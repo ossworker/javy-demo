@@ -175,7 +175,7 @@ pub async fn run(js_content: &str, json: &str) {
 
     let mut store = Store::new(&engine, wasi_host_ctx);
 
-    let module_or_component = parse_module_or_component("js.wasi.wasm");
+    let module_or_component = parse_module_or_component("javy-demo.wasm");
 
     let wasm_output = {
         match &module_or_component {
@@ -183,12 +183,12 @@ pub async fn run(js_content: &str, json: &str) {
                 let mut component_linker = component::Linker::new(&engine);
 
                 preview2::command::add_to_linker(&mut component_linker).unwrap();
-                let (comand, _instance) = preview2::command::Command::instantiate_async(
+                let (command, _instance) = preview2::command::Command::instantiate_async(
                     &mut store,
                     component,
                     &component_linker,
                 ).await.unwrap();
-                let _ = comand
+                let _ = command
                     .wasi_cli_run()
                     .call_run(&mut store)
                     .await
@@ -208,7 +208,7 @@ pub async fn run(js_content: &str, json: &str) {
             }
         }
         drop(store);
-        if stdio.stderr.contents().is_empty() {
+        if stdio.stdout.contents().is_empty() {
             WasmOutput::new(false, stdio.stderr.contents().to_vec())
         } else {
             WasmOutput::new(true, stdio.stdout.contents().to_vec())
