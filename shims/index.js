@@ -44,9 +44,10 @@ entrypoint = (input) => {
                     output: res,
                     log,
                 };
-            }).catch((err) => {
-            error = `Couldn't process the response from the handler:\n${err}`;
-        })
+            })
+            .catch((err) => {
+                error = `Couldn't process the response from the handler:\n${err}\n${err.stack}`;
+            })
     } catch (err) {
         error = `There was an error running the handler:\n${err}\n${err.stack}`;
     }
