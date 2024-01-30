@@ -162,10 +162,10 @@ fn main() {
     let error_value = global.get_property("error").unwrap();
     let output_value = global.get_property("result").unwrap();
 
-
     if !error_value.is_null_or_undefined() {
         let error = json::transcode_output(error_value).unwrap();
-        stderr().write_all(&error).expect("js error");
+        stderr().write_all(&error.as_slice()).expect("js error");
+        return;
     }
     let output = json::transcode_output(output_value).unwrap();
     stdout()

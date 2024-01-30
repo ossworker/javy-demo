@@ -9,4 +9,4 @@ opt: build
 test-input:
 	echo '{"id":"1","name":"李四"}' | wasmtime  .\target\wasm32-wasi\release\javy-demo.wasm
 
-	echo '{"body": "{\"desc\":\"input is default\"}", "js_content": "const handler = (input, {dayjs, Big, moment, env}) => { console.log(\"input\", input);return {  env  };};"}' | wasmtime  target/wasm32-wasi/release/javy-demo.wasm
+	echo '{"body": "{\"desc\":\"input is default\"}", "js_content": "const handler = (input, {dayjs, Big, moment, env}) => { console.log(\"input\", input1);return {  env  };};"}' | wasmtime  target/wasm32-wasi/release/javy-demo.wasm
