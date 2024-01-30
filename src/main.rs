@@ -1,3 +1,5 @@
+
+
 use std::collections::HashMap;
 use std::env;
 use std::io::{Read, stderr, stdin, stdout, Write};
@@ -99,6 +101,7 @@ fn main() {
 
     stdin().read_to_string(&mut request).unwrap();
 
+    // contents.push_str(&env_src_string);
     context
         .eval_global("__GLOBAL__ENV", &env_src_string)
         .unwrap();
@@ -159,7 +162,6 @@ fn main() {
     let error_value = global.get_property("error").unwrap();
     let output_value = global.get_property("result").unwrap();
 
-    println!("{:?}",&output_value);
 
     if !error_value.is_null_or_undefined() {
         let error = json::transcode_output(error_value).unwrap();
