@@ -2,7 +2,7 @@
 .PHONY: wizer opt
 
 wizer:
-	wizer --allow-wasi --wasm-bulk-memory true -o ./javy-demo.wasi.wasm ./javy-demo.wasm
+	wizer --allow-wasi --wasm-bulk-memory true -o ./javy-demo.wizer.wasm ./javy-demo.wasm
 
 #O：启用默认优化，等同于-Os参数
  #-O0：不进行任何优化

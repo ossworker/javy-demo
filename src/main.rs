@@ -101,7 +101,7 @@ fn parse_module_or_component(url: &str) -> ModuleOrComponent {
 async fn main() {
     let handler_str = "export default {
     async handler(input, {dayjs, Big, moment,env}) {
-        console.log('input', input1);
+        console.log('input', input);
         const momentValid = typeof moment === 'function' && Object.keys(moment).includes('isDayjs');
         const dayjsValid = typeof dayjs === 'function' && Object.keys(moment).includes('isDayjs');
         const bigjsValid = typeof Big === 'function';
@@ -119,7 +119,7 @@ async fn main() {
 };";
 
     let json = "{\"id\":\"1\",\"name\":\"张三\"}";
-    for _i in 0..1 {
+    for _i in 0..10 {
         run(handler_str, json).await;
     }
     // drop(store);
@@ -175,7 +175,7 @@ pub async fn run(js_content: &str, json: &str) {
 
     let mut store = Store::new(&engine, wasi_host_ctx);
 
-    let module_or_component = parse_module_or_component("javy-demo.wasm");
+    let module_or_component = parse_module_or_component("js.opt.wasm");
 
     let wasm_output = {
         match &module_or_component {
