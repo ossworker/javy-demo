@@ -169,6 +169,6 @@ fn main() {
     }
     let output = json::transcode_output(output_value).unwrap();
     stdout()
-        .write_all(&output)
+        .write_all(&output.as_slice())
         .expect("Error when returning the response");
 }

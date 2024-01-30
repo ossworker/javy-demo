@@ -5,7 +5,7 @@ let log = [];
 globalThis.console = {
     log: (...args) => {
         try {
-            // __console_log(args.map(a => JSON.stringify(a)).join(","));
+            __console_log(args.map(a => JSON.stringify(a)).join(","));
             log.push({
                 msSinceRun: Date.now() - now,
                 lines: args.map(a => JSON.stringify(a))
