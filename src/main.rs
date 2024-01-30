@@ -101,7 +101,7 @@ fn parse_module_or_component(url: &str) -> ModuleOrComponent {
 async fn main() {
     let handler_str = "export default {
     async handler(input, {dayjs, Big, moment,env}) {
-        console.log('input', input);
+        console.log('input', input1);
         const momentValid = typeof moment === 'function' && Object.keys(moment).includes('isDayjs');
         const dayjsValid = typeof dayjs === 'function' && Object.keys(moment).includes('isDayjs');
         const bigjsValid = typeof Big === 'function';
@@ -175,7 +175,7 @@ pub async fn run(js_content: &str, json: &str) {
 
     let mut store = Store::new(&engine, wasi_host_ctx);
 
-    let module_or_component = parse_module_or_component("js.opt.wasm");
+    let module_or_component = parse_module_or_component("js.wasi.wasm");
 
     let wasm_output = {
         match &module_or_component {
@@ -214,7 +214,7 @@ pub async fn run(js_content: &str, json: &str) {
             WasmOutput::new(true, stdio.stdout.contents().to_vec())
         }
     };
-    println!("result: success: \n{:#?} \nbody:\n{:#?}", wasm_output.success, String::from_utf8(wasm_output.data).unwrap());
+    println!("result: success: \n{:#?} \nbody:\n{:#?}", wasm_output.success, String::from_utf8_lossy(&wasm_output.data));
     // let evaluate_response: EvaluateResponse = serde_json::from_slice(wasm_output.data.as_slice()).unwrap();
     // println!("evaluate_response:{:#?}", evaluate_response);
     // println!("result: success: \n{:#?} \nbody:\n{:#?}", wasm_output.success, String::from_utf8(wasm_output.data).unwrap());
