@@ -119,7 +119,7 @@ async fn main() {
 };";
 
     let json = "{\"id\":\"1\",\"name\":\"张三\"}";
-    for _i in 0..10 {
+    for _i in 0..1 {
         run(handler_str, json).await;
     }
     // drop(store);
