@@ -94,7 +94,7 @@ fn main() {
         env_vars.insert(String::from("key"), String::from("value"));
         format!(
             "{};const __GLOBAL__ENV = {};",
-            "__setNowDate(Date.now())",
+            "globalThis.now = Date.now();",
             serde_json::to_string(&env_vars).unwrap()
         )
     };

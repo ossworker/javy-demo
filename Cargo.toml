@@ -9,7 +9,7 @@ edition = "2021"
 #package = "workoss:javy-demo"
 
 [dependencies]
-wit-bindgen = { version = "0.18.0", default-features = false, features = ["realloc"]}
+wit-bindgen = { version = "0.18", default-features = false, features = ["realloc"]}
 javy = { version = "2.2", features = ["json"] }
 regex = "1.10"
 serde_json = "1.0"

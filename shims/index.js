@@ -1,4 +1,3 @@
-let now = Date.now();
 
 let log = [];
 
@@ -21,9 +20,6 @@ globalThis.console = {
 
 let handlerFunction;
 
-globalThis.__setNowDate = (nowDate) => {
-    now = nowDate;
-}
 
 globalThis.__addHandler = (handlerFunc) => {
     handlerFunction = handlerFunc;
