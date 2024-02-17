@@ -43,7 +43,7 @@ fn precompile() -> Runtime {
 
     let bytecode = context.compile_global("polyfill.js", POLYFILL).unwrap();
     // Preload it
-    let _ = context.eval_binary(&bytecode);
+    let _ = context.eval_binary(&bytecode).expect("load polyfill error");
     runtime
 }
 
