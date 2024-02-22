@@ -8,9 +8,9 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use wasmtime::{component, Config, Engine, Linker, Module, Store};
-use wasmtime::component::Component;
+use wasmtime::component::{Component, ResourceTable};
 use wasmtime_wasi::{ambient_authority, Dir, preview2};
-use wasmtime_wasi::preview2::{DirPerms, FilePerms};
+use wasmtime_wasi::preview2::{DirPerms, FilePerms, WasiCtx};
 
 use crate::errors::RuntimeError;
 use crate::io::{WasmInput, WasmOutput};
@@ -47,19 +47,11 @@ struct WasiHostCtx {
 }
 
 impl preview2::WasiView for WasiHostCtx {
-    fn table(&self) -> &preview2::ResourceTable {
-        &self.preview2_table
-    }
-
-    fn table_mut(&mut self) -> &mut preview2::ResourceTable {
+    fn table(&mut self) -> &mut ResourceTable {
         &mut self.preview2_table
     }
 
-    fn ctx(&self) -> &preview2::WasiCtx {
-        &self.preview2_ctx
-    }
-
-    fn ctx_mut(&mut self) -> &mut preview2::WasiCtx {
+    fn ctx(&mut self) -> &mut WasiCtx {
         &mut self.preview2_ctx
     }
 }
