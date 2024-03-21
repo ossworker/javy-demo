@@ -171,7 +171,7 @@ pub async fn run(js_content: &str, json: &str) {
     let wasm_output = {
         match &module_or_component {
             ModuleOrComponent::Component(component) => {
-                let mut component_linker = component::Linker::new(&engine);
+                let mut component_linker: component::Linker<WasiHostCtx> = component::Linker::new(&engine);
                 wasmtime_wasi::command::add_to_linker(&mut component_linker).unwrap();
 
                 // let (command, _instance) = wasmtime_wasi::command::Command::instantiate_async(

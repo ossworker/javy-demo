@@ -19,7 +19,7 @@ impl Stdio {
             CtxBuilder::Preview2(ref mut builder) => {
                 builder
                     .stdin(
-                        wasmtime_wasi::pipe::MemoryInputPipe::new(self.stdin.clone().into()),
+                        wasmtime_wasi::pipe::MemoryInputPipe::new(self.stdin.to_vec()),
                     )
                     .stdout(
                         self.stdout.clone(),
