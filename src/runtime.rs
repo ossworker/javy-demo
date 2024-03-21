@@ -1,7 +1,7 @@
-use wasmtime_wasi::preview2;
+
 
 pub enum CtxBuilder {
-    Preview2(preview2::WasiCtxBuilder),
+    Preview2(wasmtime_wasi::WasiCtxBuilder),
 }
 
 // pub trait Runtime {

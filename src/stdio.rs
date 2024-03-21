@@ -1,17 +1,16 @@
-use wasmtime_wasi::preview2;
 
 use crate::runtime::CtxBuilder;
 
 pub struct Stdio {
     pub stdin: Vec<u8>,
-    pub stdout: preview2::pipe::MemoryOutputPipe,
-    pub stderr: preview2::pipe::MemoryOutputPipe,
+    pub stdout: wasmtime_wasi::pipe::MemoryOutputPipe,
+    pub stderr: wasmtime_wasi::pipe::MemoryOutputPipe,
 }
 
 impl Stdio {
     pub fn new(stdin: Vec<u8>) -> Self {
-        let stdout = preview2::pipe::MemoryOutputPipe::new(1024);
-        let stderr = preview2::pipe::MemoryOutputPipe::new(1024);
+        let stdout = wasmtime_wasi::pipe::MemoryOutputPipe::new(1024);
+        let stderr = wasmtime_wasi::pipe::MemoryOutputPipe::new(1024);
         Stdio { stdin, stdout, stderr }
     }
 
@@ -20,7 +19,7 @@ impl Stdio {
             CtxBuilder::Preview2(ref mut builder) => {
                 builder
                     .stdin(
-                        preview2::pipe::MemoryInputPipe::new(self.stdin.clone().into()),
+                        wasmtime_wasi::pipe::MemoryInputPipe::new(self.stdin.clone().into()),
                     )
                     .stdout(
                         self.stdout.clone(),

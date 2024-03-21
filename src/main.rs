@@ -8,9 +8,8 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use wasmtime::{component, Config, Engine, Linker, Module, Store};
-use wasmtime::component::{Component, ResourceTable};
-use wasmtime_wasi::{ambient_authority, Dir, preview2};
-use wasmtime_wasi::preview2::{DirPerms, FilePerms, WasiCtx};
+use wasmtime::component::Component;
+use wasmtime_wasi::{WasiCtx, WasiCtxBuilder};
 
 use crate::errors::RuntimeError;
 use crate::io::{WasmInput, WasmOutput};
@@ -41,13 +40,13 @@ pub enum ModuleOrComponent {
 
 // #[derive(Default)]
 struct WasiHostCtx {
-    preview2_ctx: preview2::WasiCtx,
-    preview2_table: preview2::ResourceTable,
-    preview1_adapter: preview2::preview1::WasiPreview1Adapter,
+    preview2_ctx: wasmtime_wasi::WasiCtx,
+    preview2_table: wasmtime_wasi::ResourceTable,
+    preview1_adapter: wasmtime_wasi::preview1::WasiPreview1Adapter,
 }
 
-impl preview2::WasiView for WasiHostCtx {
-    fn table(&mut self) -> &mut ResourceTable {
+impl wasmtime_wasi::WasiView for WasiHostCtx {
+    fn table(&mut self) -> &mut wasmtime_wasi::ResourceTable {
         &mut self.preview2_table
     }
 
@@ -56,12 +55,12 @@ impl preview2::WasiView for WasiHostCtx {
     }
 }
 
-impl preview2::preview1::WasiPreview1View for WasiHostCtx {
-    fn adapter(&self) -> &preview2::preview1::WasiPreview1Adapter {
+impl wasmtime_wasi::preview1::WasiPreview1View for WasiHostCtx {
+    fn adapter(&self) -> &wasmtime_wasi::preview1::WasiPreview1Adapter {
         &self.preview1_adapter
     }
 
-    fn adapter_mut(&mut self) -> &mut preview2::preview1::WasiPreview1Adapter {
+    fn adapter_mut(&mut self) -> &mut wasmtime_wasi::preview1::WasiPreview1Adapter {
         &mut self.preview1_adapter
     }
 }
@@ -120,14 +119,14 @@ async fn main() {
 pub fn prepare_wasi_context(wasi_builder: &mut CtxBuilder) -> anyhow::Result<()> {
     match wasi_builder {
         CtxBuilder::Preview2(wasi_builder) => {
-            wasi_builder
-                .preopened_dir(
-                    Dir::open_ambient_dir(env::current_dir().unwrap(),
-                                          ambient_authority()).unwrap(),
-                    DirPerms::all(),
-                    FilePerms::all(),
-                    ".",
-                );
+            // wasi_builder
+            //     .preopened_dir(
+            //         Dir::open_ambient_dir(env::current_dir().unwrap(),
+            //                               ambient_authority()).unwrap(),
+            //         DirPerms::all(),
+            //         FilePerms::all(),
+            //         ".",
+            //     );
         }
     }
     Ok(())
@@ -146,7 +145,7 @@ pub async fn run(js_content: &str, json: &str) {
     let input = serde_json::to_vec(&WasmInput::new(js_content, json)).unwrap();
 
 
-    let mut ctx_builder = CtxBuilder::Preview2(preview2::WasiCtxBuilder::new());
+    let mut ctx_builder = CtxBuilder::Preview2(wasmtime_wasi::WasiCtxBuilder::new());
 
     let _ = prepare_wasi_context(&mut ctx_builder);
 
@@ -159,8 +158,8 @@ pub async fn run(js_content: &str, json: &str) {
         CtxBuilder::Preview2(mut wasi_builder) => {
             WasiHostCtx {
                 preview2_ctx: wasi_builder.build(),
-                preview2_table: preview2::ResourceTable::new(),
-                preview1_adapter: preview2::preview1::WasiPreview1Adapter::new(),
+                preview2_table: wasmtime_wasi::ResourceTable::new(),
+                preview1_adapter: wasmtime_wasi::preview1::WasiPreview1Adapter::new(),
             }
         }
     };
@@ -173,22 +172,22 @@ pub async fn run(js_content: &str, json: &str) {
         match &module_or_component {
             ModuleOrComponent::Component(component) => {
                 let mut component_linker = component::Linker::new(&engine);
+                wasmtime_wasi::command::add_to_linker(&mut component_linker).unwrap();
 
-                preview2::command::add_to_linker(&mut component_linker).unwrap();
-                let (command, _instance) = preview2::command::Command::instantiate_async(
-                    &mut store,
-                    component,
-                    &component_linker,
-                ).await.unwrap();
-                let _ = command
-                    .wasi_cli_run()
-                    .call_run(&mut store)
-                    .await
-                    .unwrap();
+                // let (command, _instance) = wasmtime_wasi::command::Command::instantiate_async(
+                //     &mut store,
+                //     component,
+                //     &component_linker,
+                // ).await.unwrap();
+                // let _ = command
+                //     .wasi_cli_run()
+                //     .call_run(&mut store)
+                //     .await
+                //     .unwrap();
             }
             ModuleOrComponent::Module(module) => {
                 let mut linker: Linker<WasiHostCtx> = Linker::new(&engine);
-                preview2::preview1::add_to_linker_async(&mut linker).unwrap();
+                wasmtime_wasi::preview1::add_to_linker_async(&mut linker,|t|t).unwrap();
                 let func = linker
                     .module_async(&mut store, "", &module)
                     .await.unwrap()
