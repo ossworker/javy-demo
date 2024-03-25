@@ -4,12 +4,12 @@ use std::{env, fs};
 use std::ops::Deref;
 use std::sync::LazyLock;
 use std::time::Instant;
+
 use serde::Deserialize;
 use serde_json::Value;
-
 use wasmtime::{component, Config, Engine, Linker, Module, Store};
 use wasmtime::component::Component;
-use wasmtime_wasi::{WasiCtx, WasiCtxBuilder};
+use wasmtime_wasi::WasiCtx;
 
 use crate::errors::RuntimeError;
 use crate::io::{WasmInput, WasmOutput};
@@ -118,7 +118,7 @@ async fn main() {
 
 pub fn prepare_wasi_context(wasi_builder: &mut CtxBuilder) -> anyhow::Result<()> {
     match wasi_builder {
-        CtxBuilder::Preview2(wasi_builder) => {
+        CtxBuilder::Preview2(_wasi_builder) => {
             // wasi_builder
             //     .preopened_dir(
             //         Dir::open_ambient_dir(env::current_dir().unwrap(),
@@ -174,16 +174,16 @@ pub async fn run(js_content: &str, json: &str) {
                 let mut component_linker: component::Linker<WasiHostCtx> = component::Linker::new(&engine);
                 wasmtime_wasi::command::add_to_linker(&mut component_linker).unwrap();
 
-                // let (command, _instance) = wasmtime_wasi::command::Command::instantiate_async(
-                //     &mut store,
-                //     component,
-                //     &component_linker,
-                // ).await.unwrap();
-                // let _ = command
-                //     .wasi_cli_run()
-                //     .call_run(&mut store)
-                //     .await
-                //     .unwrap();
+                let (command, _instance) = wasmtime_wasi::command::Command::instantiate_async(
+                    &mut store,
+                    component,
+                    &component_linker,
+                ).await.unwrap();
+                let _ = command
+                    .wasi_cli_run()
+                    .call_run(&mut store)
+                    .await
+                    .unwrap();
             }
             ModuleOrComponent::Module(module) => {
                 let mut linker: Linker<WasiHostCtx> = Linker::new(&engine);

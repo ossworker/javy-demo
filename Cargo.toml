@@ -9,7 +9,8 @@ edition = "2021"
 #async-std = { version = "1.12.0", features = ["attributes"] }
 wasmparser = "0.201"
 #tokio = {version = "^1.33.0", features = ["full"]}
-wasmtime = { version = "19", features = ["async","component-model"] }
+#wasmtime = { version = "19", features = ["async","component-model"] }
+wasmtime = { version = "19"}
 wasmtime-wasi = { version = "19" }
 tokio = { version = "1.36", features = ["rt", "rt-multi-thread", "macros"] }
 serde = { version = "1.0", features = ["derive"] }
