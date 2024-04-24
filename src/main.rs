@@ -42,7 +42,7 @@ pub enum ModuleOrComponent {
 struct WasiHostCtx {
     preview2_ctx: wasmtime_wasi::WasiCtx,
     preview2_table: wasmtime_wasi::ResourceTable,
-    preview1_adapter: wasmtime_wasi::preview1::WasiPreview1Adapter,
+    preview1_ctx: wasmtime_wasi::preview1::WasiP1Ctx,
 }
 
 impl wasmtime_wasi::WasiView for WasiHostCtx {
@@ -159,7 +159,7 @@ pub async fn run(js_content: &str, json: &str) {
             WasiHostCtx {
                 preview2_ctx: wasi_builder.build(),
                 preview2_table: wasmtime_wasi::ResourceTable::new(),
-                preview1_adapter: wasmtime_wasi::preview1::WasiPreview1Adapter::new(),
+                preview1_ctx: wasmtime_wasi::preview1::WasiP1Ctx::bu,
             }
         }
     };
@@ -172,7 +172,7 @@ pub async fn run(js_content: &str, json: &str) {
         match &module_or_component {
             ModuleOrComponent::Component(component) => {
                 let mut component_linker: component::Linker<WasiHostCtx> = component::Linker::new(&engine);
-                wasmtime_wasi::command::add_to_linker(&mut component_linker).unwrap();
+                wasi_common::sync::add_to_linker(&mut component_linker, |t|t).unwrap();
 
                 let (command, _instance) = wasmtime_wasi::command::Command::instantiate_async(
                     &mut store,
