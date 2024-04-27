@@ -1,15 +1,16 @@
 #![feature(lazy_cell)]
 
-use std::{env, fs};
 use std::ops::Deref;
 use std::sync::LazyLock;
 use std::time::Instant;
+use std::{env, fs};
 
 use serde::Deserialize;
 use serde_json::Value;
-use wasmtime::{component, Config, Engine, Linker, Module, Store};
 use wasmtime::component::Component;
-use wasmtime_wasi::WasiCtx;
+use wasmtime::{Config, Engine, Linker, Module, Store};
+use wasmtime_wasi::preview1::{self, WasiP1Ctx};
+use wasmtime_wasi::{self};
 
 use crate::errors::RuntimeError;
 use crate::io::{WasmInput, WasmOutput};
@@ -17,13 +18,14 @@ use crate::runtime::CtxBuilder;
 use crate::stdio::Stdio;
 
 mod errors;
-mod stdio;
 mod io;
 mod runtime;
+mod stdio;
 
 static ENGINE: LazyLock<Engine> = LazyLock::new(|| {
     let mut config = Config::default();
-    config.async_support(true)
+    config
+        .async_support(true)
         .wasm_component_model(true)
         .wasm_multi_memory(true)
         .wasm_threads(true)
@@ -37,35 +39,6 @@ pub enum ModuleOrComponent {
     Component(Component),
 }
 
-
-// #[derive(Default)]
-struct WasiHostCtx {
-    preview2_ctx: wasmtime_wasi::WasiCtx,
-    preview2_table: wasmtime_wasi::ResourceTable,
-    preview1_ctx: wasmtime_wasi::preview1::WasiP1Ctx,
-}
-
-impl wasmtime_wasi::WasiView for WasiHostCtx {
-    fn table(&mut self) -> &mut wasmtime_wasi::ResourceTable {
-        &mut self.preview2_table
-    }
-
-    fn ctx(&mut self) -> &mut WasiCtx {
-        &mut self.preview2_ctx
-    }
-}
-
-impl wasmtime_wasi::preview1::WasiPreview1View for WasiHostCtx {
-    fn adapter(&self) -> &wasmtime_wasi::preview1::WasiPreview1Adapter {
-        &self.preview1_adapter
-    }
-
-    fn adapter_mut(&mut self) -> &mut wasmtime_wasi::preview1::WasiPreview1Adapter {
-        &mut self.preview1_adapter
-    }
-}
-
-
 fn parse_module_or_component(url: &str) -> ModuleOrComponent {
     let mut path_buf = env::current_dir().unwrap();
     path_buf.push(url);
@@ -74,18 +47,17 @@ fn parse_module_or_component(url: &str) -> ModuleOrComponent {
     let engine = ENGINE.deref();
     let module_or_component = if wasmparser::Parser::is_component(&bytes) {
         Ok(ModuleOrComponent::Component(
-            Component::from_binary(ENGINE.deref(), &bytes).expect("load component error")
+            Component::from_binary(ENGINE.deref(), &bytes).expect("load component error"),
         ))
     } else if wasmparser::Parser::is_core_wasm(&bytes) {
         Ok(ModuleOrComponent::Module(
-            Module::from_binary(engine, &bytes).expect("load module error")
+            Module::from_binary(engine, &bytes).expect("load module error"),
         ))
     } else {
         Err(RuntimeError::CannotReadModule)
     };
     module_or_component.unwrap()
 }
-
 
 // #[async_std::main]
 #[tokio::main]
@@ -144,68 +116,72 @@ pub async fn run(js_content: &str, json: &str) {
     let engine = ENGINE.deref();
     let input = serde_json::to_vec(&WasmInput::new(js_content, json)).unwrap();
 
-
-    let mut ctx_builder = CtxBuilder::Preview2(wasmtime_wasi::WasiCtxBuilder::new());
-
-    let _ = prepare_wasi_context(&mut ctx_builder);
+    // let mut ctx_builder = CtxBuilder::Preview2(wasmtime_wasi::WasiCtxBuilder::new());
 
     let stdio = Stdio::new(input);
 
+    // let ctx_builder = wasmtime_wasi::WasiCtxBuilder::new()
+    //     .stdin(wasmtime_wasi::pipe::MemoryInputPipe::new(
+    //         stdio.stdin.to_vec(),
+    //     ))
+    //     .stdout(stdio.stdout.clone())
+    //     .stderr(stdio.stderr.clone());
+
     //设置in out error
-    let ctx_builder = stdio.configure_wasi_ctx(ctx_builder);
+    // let ctx_builder = stdio.configure_wasi_ctx(ctx_builder);
 
-    let wasi_host_ctx = match ctx_builder {
-        CtxBuilder::Preview2(mut wasi_builder) => {
-            WasiHostCtx {
-                preview2_ctx: wasi_builder.build(),
-                preview2_table: wasmtime_wasi::ResourceTable::new(),
-                preview1_ctx: wasmtime_wasi::preview1::WasiP1Ctx::bu,
-            }
-        }
-    };
-
-    let mut store = Store::new(&engine, wasi_host_ctx);
+    // let wasi_host_ctx = match ctx_builder {
+    //     CtxBuilder::Preview2(mut wasi_builder) => WasiHostCtx {
+    //         preview2_ctx: wasi_builder.build(),
+    //         preview2_table: wasmtime_wasi::ResourceTable::new(),
+    //     },
+    // };
 
     let module_or_component = parse_module_or_component("js.opt.wasm");
 
     let wasm_output = {
         match &module_or_component {
-            ModuleOrComponent::Component(component) => {
-                let mut component_linker: component::Linker<WasiHostCtx> = component::Linker::new(&engine);
-                wasi_common::sync::add_to_linker(&mut component_linker, |t|t).unwrap();
-
-                let (command, _instance) = wasmtime_wasi::command::Command::instantiate_async(
-                    &mut store,
-                    component,
-                    &component_linker,
-                ).await.unwrap();
-                let _ = command
-                    .wasi_cli_run()
-                    .call_run(&mut store)
-                    .await
-                    .unwrap();
-            }
+            ModuleOrComponent::Component(_) => {}
             ModuleOrComponent::Module(module) => {
-                let mut linker: Linker<WasiHostCtx> = Linker::new(&engine);
-                wasmtime_wasi::preview1::add_to_linker_async(&mut linker,|t|t).unwrap();
+                // wasi_common::pipe::ReadPipe::peek(buf)
+                let wasi_host_ctx: WasiP1Ctx = wasmtime_wasi::WasiCtxBuilder::new()
+                    // let wasi_host_ctx: WasiCtx = wasi_common::sync::WasiCtxBuilder::new()
+                    .stdin(wasmtime_wasi::pipe::MemoryInputPipe::new(
+                        stdio.stdin.to_vec(),
+                    ))
+                    .stdout(stdio.stdout.clone())
+                    .stderr(stdio.stderr.clone())
+                    .build_p1();
+                // .build();
+                let mut store: Store<WasiP1Ctx> = Store::new(&engine, wasi_host_ctx);
+
+                let mut linker: Linker<WasiP1Ctx> = Linker::new(&engine);
+                preview1::add_to_linker_async(&mut linker, |t| t).unwrap();
+
                 let func = linker
                     .module_async(&mut store, "", &module)
-                    .await.unwrap()
-                    .get_default(&mut store, "").unwrap()
-                    .typed::<(), ()>(&store).unwrap();
+                    .await
+                    .unwrap()
+                    .get_default(&mut store, "")
+                    .unwrap()
+                    .typed::<(), ()>(&store)
+                    .unwrap();
 
                 // Invoke the WASI program default function.
                 func.call_async(&mut store, ()).await.unwrap();
             }
         }
-        drop(store);
         if stdio.stdout.contents().is_empty() {
             WasmOutput::new(false, stdio.stderr.contents().to_vec())
         } else {
             WasmOutput::new(true, stdio.stdout.contents().to_vec())
         }
     };
-    println!("result: success: \n{:#?} \nbody:\n{:#?}", wasm_output.success, String::from_utf8_lossy(&wasm_output.data));
+    println!(
+        "result: success: \n{:#?} \nbody:\n{:#?}",
+        wasm_output.success,
+        String::from_utf8_lossy(&wasm_output.data)
+    );
     // let evaluate_response: EvaluateResponse = serde_json::from_slice(wasm_output.data.as_slice()).unwrap();
     // println!("evaluate_response:{:#?}", evaluate_response);
     // println!("result: success: \n{:#?} \nbody:\n{:#?}", wasm_output.success, String::from_utf8(wasm_output.data).unwrap());

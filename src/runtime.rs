@@ -1,5 +1,3 @@
-
-
 pub enum CtxBuilder {
     Preview2(wasmtime_wasi::WasiCtxBuilder),
 }
