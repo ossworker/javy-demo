@@ -10,7 +10,7 @@ edition = "2021"
 
 [dependencies]
 bitflags = "2.5"
-wit-bindgen-rt = "0.24"
+wit-bindgen-rt = "0.25"
 javy = { version = "2.2", features = ["json"] }
 regex = "1.10"
 serde_json = "1.0"
