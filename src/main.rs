@@ -236,7 +236,7 @@ mod tests {
             assert!(result >= 0.0);
             assert!(result < 1.0);
 
-            let quickjs_result: javy::quickjs::Result<String> = this.eval_with_options("result = JSON.stringify1({id:111});", EvalOptions::default());
+            let quickjs_result: javy::quickjs::Result<String> = this.eval_with_options("result = JSON.stringify({id:111});", EvalOptions::default());
 
             let binding:Value = this
                 .globals()
