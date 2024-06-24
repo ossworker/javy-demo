@@ -5,12 +5,11 @@ use std::env;
 use std::io::{Read, stderr, stdin, stdout, Write};
 use std::sync::OnceLock;
 
-use crate::jsbindings::{load_bindings_into_global, RuntimeError};
-use javy::{json, Runtime};
+use javy::{Config, json, quickjs, Runtime};
 use regex::Regex;
 use serde::Deserialize;
 
-mod jsbindings;
+
 
 mod handler;
 
@@ -23,27 +22,26 @@ static mut RUNTIME: OnceLock<Runtime> = OnceLock::new();
 #[export_name = "wizer.initialize"]
 pub extern "C" fn init() {
     let runtime = precompile();
-    unsafe { RUNTIME.set(runtime).unwrap() };
+    unsafe { RUNTIME.set(runtime); }
 }
 
 fn precompile() -> Runtime {
-    let runtime = Runtime::default();
+
+    let runtime = Runtime::new(Default::default()).unwrap();
     // Precompile the Polyfill to bytecode
     let context = runtime.context();
 
-    let dayjs_src = context
-        .compile_global("dayjs.js", include_str!("script/dayjs.js"))
+    let _dayjs_src = runtime
+        .compile_to_bytecode("dayjs.js", include_str!("script/dayjs.js"))
         .unwrap();
-    context.eval_binary(&dayjs_src).expect("load dayjs error");
 
-    let dayjs_src = context
-        .compile_global("big.js", include_str!("script/big.js"))
+    let _dayjs_src = runtime
+        .compile_to_bytecode("big.js", include_str!("script/big.js"))
         .unwrap();
-    context.eval_binary(&dayjs_src).expect("load dayjs error");
 
-    let bytecode = context.compile_global("polyfill.js", POLYFILL).unwrap();
+    let bytecode = runtime.compile_to_bytecode("polyfill.js", POLYFILL).unwrap();
     // Preload it
-    let _ = context.eval_binary(&bytecode).expect("load polyfill error");
+    // let _ = context.eval_binary(&bytecode).expect("load polyfill error");
     runtime
 }
 
@@ -101,74 +99,170 @@ fn main() {
 
     stdin().read_to_string(&mut request).unwrap();
 
-    // contents.push_str(&env_src_string);
-    context
-        .eval_global("__GLOBAL__ENV", &env_src_string)
-        .unwrap();
+    // context.with(|ctx| {
+    //    ctx.eval_with_options(env_src_string, Default::default()).unwrap();
+    // });
 
     let input: WasmInput = serde_json::from_str(&request).unwrap();
 
     contents.push_str(&input.js_content);
 
-    let global = context.global_object().unwrap();
 
-    match load_bindings_into_global(context, global) {
-        Ok(_) => {}
-        Err(e) => match e {
-            RuntimeError::InvalidBinding { invalid_export } => {
-                eprintln!("There was an error adding the '{invalid_export}' binding");
-            }
-        },
-    }
+
 
     match identify_type(&contents) {
         JSWorkerType::DefaultExport => {
-            let _ = context.eval_module("handler.mjs", &contents).unwrap();
-            let _ = context
-                .eval_module(
-                    "runtime.mjs",
-                    "import {default as handler} from 'handler.mjs';__addHandler(handler.handler);",
-                )
-                .unwrap();
+            context.with(|ctx| {
+                // let globals = ctx.globals();
+                // ctx.eval_with_options(&*contents, Default::default()).unwrap();
+                quickjs::Module::evaluate(ctx.clone(),
+                                          "runtime.mjs",
+                                          "import {default as handler} from 'handler.mjs';__addHandler(handler.handler);"
+                ).unwrap();
+            });
         }
         _ => {
-            context
-                .eval_global(
-                    "handler.js",
-                    &format!("{};__addHandler(handler);", contents),
-                )
+            // context.with(|ctx| {
+            //     ctx.eval_with_options(&format!("{};__addHandler(handler);", contents), Default::default()).unwrap();
+            // });
+        }
+    }
+
+
+
+
+    // let global = context.global_object().unwrap();
+    // let entrypoint = global.get_property("entrypoint").unwrap();
+    //
+    // let input_bytes = input.body.as_bytes();
+    // let input_value = json::parse(context, input_bytes).unwrap();
+    //
+    // match entrypoint.call(&global, &[input_value]) {
+    //     Ok(_) => {}
+    //     Err(err) => eprintln!("Error calling the main entrypoint: {err}"),
+    // }
+    //
+    //
+    // if runtime.has_pending_jobs() {
+    //     if let Err(err) = runtime.resolve_pending_jobs() {
+    //         eprintln!("Error running async methods: {err}");
+    //     }
+    // }
+    //
+    //
+    //
+    // let global = context.global_object().unwrap();
+    // let error_value = global.get_property("error").unwrap();
+    // let output_value = global.get_property("result").unwrap();
+    //
+    // if !error_value.is_null_or_undefined() {
+    //     let error = json::stringify(error_value).unwrap();
+    //     stderr().write_all(&error.as_slice()).expect("js error");
+    //     return;
+    // }
+    // let output = json::stringify(output_value).unwrap();
+    // stdout()
+    //     .write_all(&output.as_slice())
+    //     .expect("Error when returning the response");
+}
+
+#[cfg(test)]
+mod tests {
+    use std::env::vars;
+    use anyhow::{anyhow, Error};
+    use javy::{Runtime, from_js_error, hold_and_release, hold, to_js_error, json, val_to_string, Config, to_string_lossy};
+    use javy::quickjs::{Ctx, Function, String as JString, Value};
+    use javy::quickjs::context::EvalOptions;
+    use javy::quickjs::function::{IntoArgs, MutFn, Rest};
+    use javy::quickjs::qjs::JSValue;
+
+    #[test]
+    fn test_javy(){
+        let runtime = Runtime::default();
+        let context = runtime.context();
+
+        // context.with(|cx| {
+        //     let globals = cx.globals();
+        //     globals.set(
+        //         "print_hello",
+        //         Function::new(
+        //             cx.clone(),
+        //             MutFn::new(move |cx: Ctx, args: Rest<Value>| {
+        //                 println!("hello")
+        //             }),
+        //         ).expect("1111111"),
+        //     ).expect("22222");
+        // });
+
+        context.with(|this| {
+            let mut eval_opts = EvalOptions::default();
+            let f: Function = this.eval("() => { console.log(JSON.stringify({id:111})); return 42;}").unwrap();
+
+            let res: i32 = ().apply(&f).unwrap();
+            assert_eq!(res, 42);
+
+            let res: i32 = f.call(()).unwrap();
+            assert_eq!(res, 42);
+            eval_opts.strict = false;
+            let json_fun: Function = this.eval(r#"() => { st = JSON.stringify({id:111}); console.log(st+"--"); return st;}"#).unwrap();
+
+            let result: String = json_fun.call(()).unwrap();
+            println!("{:#?}", result);
+
+
+        });
+
+    }
+
+
+    #[test]
+    fn test_random() -> anyhow::Result<()> {
+        let mut config = Config::default();
+        config.override_json_parse_and_stringify(true);
+
+        let runtime = Runtime::new(config).expect("runtime to be created");
+        runtime.context().with(|this| {
+            let mut eval_opts = EvalOptions::default();
+            eval_opts.strict = false;
+            this.eval_with_options("result = Math.random()", eval_opts)?;
+            let result: f64 = this
+                .globals()
+                .get::<&str, Value<'_>>("result")?
+                .as_float()
                 .unwrap();
-        }
+
+            println!("{:#?}", result);
+
+            assert!(result >= 0.0);
+            assert!(result < 1.0);
+
+            let quickjs_result: javy::quickjs::Result<String> = this.eval_with_options("result = JSON.stringify1({id:111});", EvalOptions::default());
+
+            let binding:Value = this
+                .globals()
+                .get::<&str, Value<'_>>("result")
+                .unwrap();
+            // let result  = binding;
+
+            let err_msg = val_to_string(this.clone(), this.catch()).unwrap();
+
+
+            // let str = String::from_utf8(json::stringify(binding)?)?;
+            // // let str = JString::from_str(this.clone(), &str)?;
+            println!("{:#?}", val_to_string(this.clone(),binding).unwrap());
+
+
+            println!("{:#?} {:#?}", quickjs_result.is_ok(), err_msg);
+
+
+            // let json_fun: Function = this.clone().eval(r#"() => { st = JSON.stringify({id:111}); console.log(st+"--"); return st;}"#).unwrap();
+            //
+            // let result: String = json_fun.call(()).unwrap();
+            // println!("{:#?}", result);
+
+            Ok::<_, Error>(())
+        })?;
+
+        Ok(())
     }
-
-    let global = context.global_object().unwrap();
-    let entrypoint = global.get_property("entrypoint").unwrap();
-
-    let input_bytes = input.body.as_bytes();
-    let input_value = json::transcode_input(context, input_bytes).unwrap();
-
-    match entrypoint.call(&global, &[input_value]) {
-        Ok(_) => {}
-        Err(err) => eprintln!("Error calling the main entrypoint: {err}"),
-    }
-
-    if context.is_pending() {
-        if let Err(err) = context.execute_pending() {
-            eprintln!("Error running async methods: {err}");
-        }
-    }
-
-    let global = context.global_object().unwrap();
-    let error_value = global.get_property("error").unwrap();
-    let output_value = global.get_property("result").unwrap();
-
-    if !error_value.is_null_or_undefined() {
-        let error = json::transcode_output(error_value).unwrap();
-        stderr().write_all(&error.as_slice()).expect("js error");
-        return;
-    }
-    let output = json::transcode_output(output_value).unwrap();
-    stdout()
-        .write_all(&output.as_slice())
-        .expect("Error when returning the response");
 }
