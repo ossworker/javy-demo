@@ -244,12 +244,12 @@ mod tests {
                 .unwrap();
             // let result  = binding;
 
-            let err_msg = val_to_string(this.clone(), this.catch()).unwrap();
+            let err_msg = val_to_string(&this, this.catch()).unwrap();
 
 
             // let str = String::from_utf8(json::stringify(binding)?)?;
             // // let str = JString::from_str(this.clone(), &str)?;
-            println!("{:#?}", val_to_string(this.clone(),binding).unwrap());
+            println!("{:#?}", val_to_string(&this, binding).unwrap());
 
 
             println!("{:#?} {:#?}", quickjs_result.is_ok(), err_msg);
