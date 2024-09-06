@@ -3,7 +3,8 @@
 use std::collections::HashMap;
 use std::env;
 use std::io::{Read, stderr, stdin, stdout, Write};
-use std::sync::OnceLock;
+use std::ops::Deref;
+use std::sync::{LazyLock, OnceLock};
 
 use javy::{Config, json, quickjs, Runtime};
 use regex::Regex;
@@ -17,12 +18,15 @@ const EXPOSED_PREFIX: &'static str = "ZEN_EXPOSED_";
 // JS polyfill
 static POLYFILL: &str = include_str!("../shims/index.js");
 
-static mut RUNTIME: OnceLock<Runtime> = OnceLock::new();
+// static mut RUNTIME: OnceLock<Runtime> = OnceLock::new();
+
+static mut RUNTIME: LazyLock<Runtime> = LazyLock::new(|| {
+    precompile()
+});
 
 #[export_name = "wizer.initialize"]
 pub extern "C" fn init() {
-    let runtime = precompile();
-    unsafe { RUNTIME.set(runtime); }
+    let _ = unsafe { &*RUNTIME };
 }
 
 fn precompile() -> Runtime {
@@ -75,7 +79,7 @@ struct WasmInput{
 }
 
 fn main() {
-    let runtime = unsafe { RUNTIME.get_or_init(precompile) };
+    let runtime = unsafe { &*RUNTIME };
     let context = runtime.context();
 
     let mut request = String::new();
@@ -171,10 +175,10 @@ mod tests {
     use std::env::vars;
     use anyhow::{anyhow, Error};
     use javy::{Runtime, from_js_error, hold_and_release, hold, to_js_error, json, val_to_string, Config, to_string_lossy};
-    use javy::quickjs::{Ctx, Function, String as JString, Value};
+    use javy::quickjs::{Ctx, Function, String as JString, String, Value};
     use javy::quickjs::context::EvalOptions;
     use javy::quickjs::function::{IntoArgs, MutFn, Rest};
-    use javy::quickjs::qjs::JSValue;
+
 
     #[test]
     fn test_javy(){
@@ -204,9 +208,19 @@ mod tests {
             let res: i32 = f.call(()).unwrap();
             assert_eq!(res, 42);
             eval_opts.strict = false;
-            let json_fun: Function = this.eval(r#"() => { st = JSON.stringify({id:111}); console.log(st+"--"); return st;}"#).unwrap();
 
-            let result: String = json_fun.call(()).unwrap();
+            let json_fun: Function = this.eval(r#"() => {
+                console.log("----");
+                //console.log("="+JSON.stringify({id:111}));
+                const jsonStr = JSON.stringify({id:111});
+                console.log("=="+jsonStr);
+                return "111";
+            }
+            "#).unwrap();
+
+            // let result: String = json_fun.call(()).unwrap();
+            let result = json_fun.call::<(),String>(())
+               .unwrap();
             println!("{:#?}", result);
 
 
@@ -242,23 +256,26 @@ mod tests {
                 .globals()
                 .get::<&str, Value<'_>>("result")
                 .unwrap();
-            // let result  = binding;
 
             let err_msg = val_to_string(&this, this.catch()).unwrap();
 
 
             // let str = String::from_utf8(json::stringify(binding)?)?;
             // // let str = JString::from_str(this.clone(), &str)?;
-            println!("{:#?}", val_to_string(&this, binding).unwrap());
+            println!("global var: {:#?}", val_to_string(&this, binding).unwrap());
 
 
             println!("{:#?} {:#?}", quickjs_result.is_ok(), err_msg);
 
 
-            // let json_fun: Function = this.clone().eval(r#"() => { st = JSON.stringify({id:111}); console.log(st+"--"); return st;}"#).unwrap();
-            //
-            // let result: String = json_fun.call(()).unwrap();
-            // println!("{:#?}", result);
+            let json_fun: Function = this.clone().eval(r#"() => {
+                const st = JSON.stringify({id:111});
+                console.log(st+"--");
+                return st;
+             }
+         "#).unwrap();
+            let result: String = json_fun.call::<(),String>(()).unwrap();
+            println!("fun:{:#?}", result);
 
             Ok::<_, Error>(())
         })?;
