@@ -1,63 +1,30 @@
-#![feature(lazy_cell)]
-
-use std::ops::Deref;
-use std::sync::LazyLock;
+extern crate core;
+use std::env;
+use std::ffi::{c_void, CString};
+use std::io::stdin;
+use std::path::PathBuf;
 use std::time::Instant;
-use std::{env, fs};
+use wamr_rust_sdk::function::Function;
+use wamr_rust_sdk::instance::Instance;
+use wamr_rust_sdk::module::Module;
+use wamr_rust_sdk::runtime::Runtime;
+use wamr_rust_sdk::sys::WASMMemoryType;
+use wamr_rust_sdk::value::WasmValue;
+use wamr_rust_sdk::wasi_context::WasiCtxBuilder;
+// static WAMR_RUNTIME: LazyLock<Runtime> = LazyLock::new(|| {
+//
+//     let runtime = Runtime::builder()
+//         .use_system_allocator()
+//         .register_host_function("extra", extra as *mut c_void)
+//         .build().unwrap();
+//
+//    runtime
+// });
 
-use serde::Deserialize;
-use serde_json::Value;
-use wasmtime::component::Component;
-use wasmtime::{Config, Engine, Linker, Module, Store};
-use wasmtime_wasi::preview1::{self, WasiP1Ctx};
-use wasmtime_wasi::{self};
-
-use crate::errors::RuntimeError;
-use crate::io::{WasmInput, WasmOutput};
-use crate::runtime::CtxBuilder;
-use crate::stdio::Stdio;
-
-mod errors;
-mod io;
-mod runtime;
-mod stdio;
-
-static ENGINE: LazyLock<Engine> = LazyLock::new(|| {
-    let mut config = Config::default();
-    config
-        .async_support(true)
-        .wasm_component_model(true)
-        .wasm_multi_memory(true)
-        .wasm_threads(true)
-        .cache_config_load_default()
-        .unwrap();
-    Engine::new(&config).unwrap()
-});
-
-pub enum ModuleOrComponent {
-    Module(Module),
-    Component(Component),
+extern "C" fn extra() -> i32 {
+    100
 }
 
-fn parse_module_or_component(url: &str) -> ModuleOrComponent {
-    let mut path_buf = env::current_dir().unwrap();
-    path_buf.push(url);
-    println!("{:#?}", &path_buf);
-    let bytes = fs::read(path_buf).unwrap();
-    let engine = ENGINE.deref();
-    let module_or_component = if wasmparser::Parser::is_component(&bytes) {
-        Ok(ModuleOrComponent::Component(
-            Component::from_binary(ENGINE.deref(), &bytes).expect("load component error"),
-        ))
-    } else if wasmparser::Parser::is_core_wasm(&bytes) {
-        Ok(ModuleOrComponent::Module(
-            Module::from_binary(engine, &bytes).expect("load module error"),
-        ))
-    } else {
-        Err(RuntimeError::CannotReadModule)
-    };
-    module_or_component.unwrap()
-}
 
 // #[async_std::main]
 #[tokio::main]
@@ -82,109 +49,88 @@ async fn main() {
 };";
 
     let json = "{\"id\":\"1\",\"name\":\"张三\"}";
-    for _i in 0..10 {
-        run(handler_str, json).await;
+    for _i in 0..1 {
+        let _ = run(handler_str, json).await;
     }
     // drop(store);
 }
 
-pub fn prepare_wasi_context(wasi_builder: &mut CtxBuilder) -> anyhow::Result<()> {
-    match wasi_builder {
-        CtxBuilder::Preview2(_wasi_builder) => {
-            // wasi_builder
-            //     .preopened_dir(
-            //         Dir::open_ambient_dir(env::current_dir().unwrap(),
-            //                               ambient_authority()).unwrap(),
-            //         DirPerms::all(),
-            //         FilePerms::all(),
-            //         ".",
-            //     );
-        }
+
+
+pub fn vec_u32_to_u8(data: &Vec<u32>) -> Vec<u8> {
+    // TODO: https://stackoverflow.com/questions/72631065/how-to-convert-a-u32-array-to-a-u8-array-in-place
+    // TODO: https://stackoverflow.com/questions/29037033/how-to-slice-a-large-veci32-as-u8
+    let capacity = 32/8 * data.len() as usize;  // 32/8 == 4
+    let mut output = Vec::<u8>::with_capacity(capacity);
+    for &value in data {
+        output.push((value >> 24) as u8);  // r
+        output.push((value >> 16) as u8);  // g
+        output.push((value >>  8) as u8);  // b
+        output.push((value >>  0) as u8);  // a
     }
-    Ok(())
+    output
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EvaluateResponse {
-    pub output: Value,
-    pub log: Vec<Value>,
+pub fn vec_u8_to_u32(data: &Vec<u8>) -> Vec<u32> {
+    let capacity = data.len() /4 as usize;  // 32/8 == 4
+    let mut output = Vec::<u32>::with_capacity(capacity);
+    for &value in data {
+        output.push((value as u32) << 24);  // r
+        output.push((value as u32) << 16);  // g
+        output.push((value as u32) <<  8);  // b
+        output.push((value as u32) <<  0);  // a
+    }
+    output
 }
 
-pub async fn run(js_content: &str, json: &str) {
+
+
+pub async fn run(js_content: &str, json: &str) -> anyhow::Result<()> {
     let now = Instant::now();
-    let engine = ENGINE.deref();
-    let input = serde_json::to_vec(&WasmInput::new(js_content, json)).unwrap();
 
-    // let mut ctx_builder = CtxBuilder::Preview2(wasmtime_wasi::WasiCtxBuilder::new());
+    let runtime = Runtime::builder()
+        .use_system_allocator()
+        .register_host_function("extra", extra as *mut c_void)
+        .build().unwrap();
 
-    let stdio = Stdio::new(input);
+    let wamr_runtime = &runtime;
 
-    // let ctx_builder = wasmtime_wasi::WasiCtxBuilder::new()
-    //     .stdin(wasmtime_wasi::pipe::MemoryInputPipe::new(
-    //         stdio.stdin.to_vec(),
-    //     ))
-    //     .stdout(stdio.stdout.clone())
-    //     .stderr(stdio.stderr.clone());
+    let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    d.push("add_extra_wasm32_wasi.wasm");
 
-    //设置in out error
-    // let ctx_builder = stdio.configure_wasi_ctx(ctx_builder);
+    let mut module = Module::from_file(wamr_runtime, d.as_path())?;
 
-    // let wasi_host_ctx = match ctx_builder {
-    //     CtxBuilder::Preview2(mut wasi_builder) => WasiHostCtx {
-    //         preview2_ctx: wasi_builder.build(),
-    //         preview2_table: wasmtime_wasi::ResourceTable::new(),
-    //     },
-    // };
+    let wasi_ctx = WasiCtxBuilder::new()
+        .set_pre_open_path(vec!["."],vec![])
+        .build();
 
-    let module_or_component = parse_module_or_component("js.opt.wasm");
+    module.set_wasi_context(wasi_ctx);
 
-    let wasm_output = {
-        match &module_or_component {
-            ModuleOrComponent::Component(_) => {}
-            ModuleOrComponent::Module(module) => {
-                // wasi_common::pipe::ReadPipe::peek(buf)
-                let wasi_host_ctx: WasiP1Ctx = wasmtime_wasi::WasiCtxBuilder::new()
-                    // let wasi_host_ctx: WasiCtx = wasi_common::sync::WasiCtxBuilder::new()
-                    .stdin(wasmtime_wasi::pipe::MemoryInputPipe::new(
-                        stdio.stdin.to_vec(),
-                    ))
-                    .stdout(stdio.stdout.clone())
-                    .stderr(stdio.stderr.clone())
-                    .build_p1();
-                // .build();
-                let mut store: Store<WasiP1Ctx> = Store::new(&engine, wasi_host_ctx);
+    let instance = Instance::new(wamr_runtime,&module,1024 * 64)?;
 
-                let mut linker: Linker<WasiP1Ctx> = Linker::new(&engine);
-                preview1::add_to_linker_async(&mut linker, |t| t).unwrap();
+    let function  = Function::find_export_func(&instance, "add")?;
 
-                let func = linker
-                    .module_async(&mut store, "", &module)
-                    .await
-                    .unwrap()
-                    .get_default(&mut store, "")
-                    .unwrap()
-                    .typed::<(), ()>(&store)
-                    .unwrap();
+    let params: Vec<WasmValue> = vec![WasmValue::I32(92222222), WasmValue::I32(2122222222)];
 
-                // Invoke the WASI program default function.
-                func.call_async(&mut store, ()).await.unwrap();
-            }
-        }
-        if stdio.stdout.contents().is_empty() {
-            WasmOutput::new(false, stdio.stderr.contents().to_vec())
-        } else {
-            WasmOutput::new(true, stdio.stdout.contents().to_vec())
-        }
-    };
-    println!(
-        "result: success: \n{:#?} \nbody:\n{:#?}",
-        wasm_output.success,
-        String::from_utf8_lossy(&wasm_output.data)
-    );
+    let result = function.call(&instance, &params)?;
+
+    let range = String::from("{\"code\":11}").as_bytes().to_vec();
+
+    stdin()
+
+
+    let result = &result.encode()[0];
+
+    println!("output:{:#?}", result);
+
+
     // let evaluate_response: EvaluateResponse = serde_json::from_slice(wasm_output.data.as_slice()).unwrap();
     // println!("evaluate_response:{:#?}", evaluate_response);
     // println!("result: success: \n{:#?} \nbody:\n{:#?}", wasm_output.success, String::from_utf8(wasm_output.data).unwrap());
     let first_end = now.elapsed().as_millis();
     println!("init cost:{:?}ms", first_end);
+
+
+    Ok(())
+
 }
