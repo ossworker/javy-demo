@@ -116,7 +116,7 @@ pub async fn run(js_content: &str, json: &str) -> anyhow::Result<()> {
 
     let range = String::from("{\"code\":11}").as_bytes().to_vec();
 
-    stdin()
+
 
 
     let result = &result.encode()[0];
