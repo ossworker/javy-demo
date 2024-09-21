@@ -1,14 +1,15 @@
 extern crate core;
 use std::env;
 use std::ffi::{c_void, CString};
-use std::io::stdin;
+use std::fs::File;
+use std::io::{stdin, Write};
 use std::path::PathBuf;
 use std::time::Instant;
 use wamr_rust_sdk::function::Function;
 use wamr_rust_sdk::instance::Instance;
 use wamr_rust_sdk::module::Module;
 use wamr_rust_sdk::runtime::Runtime;
-use wamr_rust_sdk::sys::WASMMemoryType;
+use wamr_rust_sdk::sys::{mem_alloc_type_t_Alloc_With_Allocator, wasm_runtime_module_malloc, WASMMemoryType};
 use wamr_rust_sdk::value::WasmValue;
 use wamr_rust_sdk::wasi_context::WasiCtxBuilder;
 // static WAMR_RUNTIME: LazyLock<Runtime> = LazyLock::new(|| {
@@ -57,33 +58,6 @@ async fn main() {
 
 
 
-pub fn vec_u32_to_u8(data: &Vec<u32>) -> Vec<u8> {
-    // TODO: https://stackoverflow.com/questions/72631065/how-to-convert-a-u32-array-to-a-u8-array-in-place
-    // TODO: https://stackoverflow.com/questions/29037033/how-to-slice-a-large-veci32-as-u8
-    let capacity = 32/8 * data.len() as usize;  // 32/8 == 4
-    let mut output = Vec::<u8>::with_capacity(capacity);
-    for &value in data {
-        output.push((value >> 24) as u8);  // r
-        output.push((value >> 16) as u8);  // g
-        output.push((value >>  8) as u8);  // b
-        output.push((value >>  0) as u8);  // a
-    }
-    output
-}
-
-pub fn vec_u8_to_u32(data: &Vec<u8>) -> Vec<u32> {
-    let capacity = data.len() /4 as usize;  // 32/8 == 4
-    let mut output = Vec::<u32>::with_capacity(capacity);
-    for &value in data {
-        output.push((value as u32) << 24);  // r
-        output.push((value as u32) << 16);  // g
-        output.push((value as u32) <<  8);  // b
-        output.push((value as u32) <<  0);  // a
-    }
-    output
-}
-
-
 
 pub async fn run(js_content: &str, json: &str) -> anyhow::Result<()> {
     let now = Instant::now();
@@ -96,30 +70,35 @@ pub async fn run(js_content: &str, json: &str) -> anyhow::Result<()> {
     let wamr_runtime = &runtime;
 
     let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    d.push("add_extra_wasm32_wasi.wasm");
+    // d.push("add_extra_wasm32_wasi.wasm");
+    d.push("wasi-demo-app.wasm");
 
     let mut module = Module::from_file(wamr_runtime, d.as_path())?;
 
     let wasi_ctx = WasiCtxBuilder::new()
         .set_pre_open_path(vec!["."],vec![])
+        // .set_arguments(vec!["wasi-demo-app.wasm","daemon","hello"])
+        .set_arguments(vec!["wasi-demo-app.wasm","write","1.txt",js_content])
+        .set_env_vars(vec!["id=1","name=2"])
         .build();
 
     module.set_wasi_context(wasi_ctx);
 
-    let instance = Instance::new(wamr_runtime,&module,1024 * 64)?;
+    let instance = Instance::new_with_args(wamr_runtime,&module,1024 * 64,1024 * 64)?;
 
-    let function  = Function::find_export_func(&instance, "add")?;
+
+    // let function  = Function::find_export_func(&instance, "add")?;
+
+    let function  = Function::find_export_func(&instance, "_start")?;
 
     let params: Vec<WasmValue> = vec![WasmValue::I32(92222222), WasmValue::I32(2122222222)];
 
-    let result = function.call(&instance, &params)?;
+    let result = function.call(&instance, &vec![])?;
 
     let range = String::from("{\"code\":11}").as_bytes().to_vec();
 
 
-
-
-    let result = &result.encode()[0];
+    // let result = &result.encode()[0];
 
     println!("output:{:#?}", result);
 
