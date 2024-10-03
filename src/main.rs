@@ -1,6 +1,6 @@
 extern crate core;
 use std::env;
-use std::ffi::{c_void, CString};
+use std::ffi::{c_char, c_void, CStr, CString};
 use std::fs::File;
 use std::io::{stdin, Write};
 use std::path::PathBuf;
@@ -9,7 +9,7 @@ use wamr_rust_sdk::function::Function;
 use wamr_rust_sdk::instance::Instance;
 use wamr_rust_sdk::module::Module;
 use wamr_rust_sdk::runtime::Runtime;
-use wamr_rust_sdk::sys::{mem_alloc_type_t_Alloc_With_Allocator, wasm_runtime_module_malloc, WASMMemoryType};
+use wamr_rust_sdk::sys::{mem_alloc_type_t_Alloc_With_Allocator, wasm_runtime_module_malloc, WASMMemory, WASMMemoryType};
 use wamr_rust_sdk::value::WasmValue;
 use wamr_rust_sdk::wasi_context::WasiCtxBuilder;
 // static WAMR_RUNTIME: LazyLock<Runtime> = LazyLock::new(|| {
@@ -25,7 +25,9 @@ use wamr_rust_sdk::wasi_context::WasiCtxBuilder;
 extern "C" fn extra() -> i32 {
     100
 }
-
+extern "C" fn test_extra() -> i32 {
+    100
+}
 
 // #[async_std::main]
 #[tokio::main]
@@ -67,6 +69,9 @@ pub async fn run(js_content: &str, json: &str) -> anyhow::Result<()> {
         .register_host_function("extra", extra as *mut c_void)
         .build().unwrap();
 
+    let x = test_extra as *mut c_void;
+    println!("{:#?}",x);
+
     let wamr_runtime = &runtime;
 
     let mut d = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -98,6 +103,7 @@ pub async fn run(js_content: &str, json: &str) -> anyhow::Result<()> {
     let range = String::from("{\"code\":11}").as_bytes().to_vec();
 
 
+
     // let result = &result.encode()[0];
 
     println!("output:{:#?}", result);
@@ -109,7 +115,57 @@ pub async fn run(js_content: &str, json: &str) -> anyhow::Result<()> {
     let first_end = now.elapsed().as_millis();
     println!("init cost:{:?}ms", first_end);
 
+    let c_string = CString::new(&*js_content.as_bytes().to_vec())?;
+
+    let c_char = c_string.as_ptr();
+
+    println!("cstring ptr {:#?}", &c_char);
+
+    let cstr = unsafe { CStr::from_ptr(c_char) };
+    let string = String::from_utf8_lossy(cstr.to_bytes()).to_string();
+
+    println!("cstring {:#?}", string);
+
+    println!("{:?}", WasmValue::V128(2323424213424234).encode());
+
+    println!("{:?}", WasmValue::decode_to_v128(WasmValue::V128(2323424213424234).encode()).encode());
 
     Ok(())
 
+}
+
+#[cfg(test)]
+mod tests {
+    use wamr_rust_sdk::runtime::Runtime;
+    use wamr_rust_sdk::sys::{wasm_runtime_free, wasm_runtime_malloc};
+
+    #[test]
+    fn test_runtime_builder_interpreter() {
+        let runtime = Runtime::builder()
+            .run_as_interpreter()
+            .use_system_allocator()
+            .build();
+        assert!(runtime.is_ok());
+
+        let small_buf = unsafe { wasm_runtime_malloc(16) };
+        println!("{:#?}", &small_buf);
+        assert!(!small_buf.is_null());
+        // unsafe { wasm_runtime_free(small_buf) };
+
+        let small_buf1 = unsafe { wasm_runtime_malloc(16) };
+
+        unsafe { wasm_runtime_free(small_buf) };
+
+        println!("{:#?}", &small_buf1);
+        assert!(!small_buf1.is_null());
+
+        unsafe { wasm_runtime_free(small_buf1) };
+
+        // 0x0000600002f14010
+        // 0x0000600002f14020
+        // 0x0000600001760010
+        // 0x0000600001760020
+        // 0x000060000284c9a0
+        // 0x000060000284c9b0
+    }
 }
