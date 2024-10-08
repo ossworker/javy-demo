@@ -98,7 +98,7 @@ pub async fn run(js_content: &str, json: &str) -> anyhow::Result<()> {
 
     let params: Vec<WasmValue> = vec![WasmValue::I32(92222222), WasmValue::I32(2122222222)];
 
-    let result = function.call(&instance, &vec![])?;
+    let result = function.call(&instance, &vec![WasmValue::I32(22)])?;
 
     let range = String::from("{\"code\":11}").as_bytes().to_vec();
 
