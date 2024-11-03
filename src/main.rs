@@ -102,7 +102,6 @@ pub async fn run(js_content: &str, json: &str) -> anyhow::Result<()> {
     let range = String::from("{\"code\":11}").as_bytes().to_vec();
 
 
-
     // let result = &result.encode()[0];
 
     println!("output:{:#?}", result);
@@ -120,18 +119,10 @@ pub async fn run(js_content: &str, json: &str) -> anyhow::Result<()> {
 
     println!("cstring ptr {:#?}", &c_char);
 
-    // let c_char_i32 = 0x00007f942ff0ed80;
-
-    let c_char_i32 = unsafe { *c_char as  i32};
-
     let cstr = unsafe { CStr::from_ptr(c_char) };
     let string = String::from_utf8_lossy(cstr.to_bytes()).to_string();
 
     println!("cstring {:#?}", string);
-
-    println!("{:?}", WasmValue::V128(2323424213424234).encode());
-
-    println!("{:?}", WasmValue::decode_to_v128(WasmValue::V128(2323424213424234).encode()).encode());
 
     Ok(())
 
@@ -205,33 +196,4 @@ mod tests {
         println!("耗时: {:?}", duration.as_millis());
     }*/
 
-    #[test]
-    fn test_font() {
-        let font_bytes = include_bytes!("RobotoMono-Regular.ttf") as &[u8];
-
-        let font = fontdue::Font::from_bytes(font_bytes, fontdue::FontSettings::default()).unwrap();
-
-        // The list of fonts that will be used during layout.
-        let fonts = &[font];
-        // Create a layout context. Laying out text needs some heap allocations; reusing this context
-        // reduces the need to reallocate space. We inform layout of which way the Y axis points here.
-        let mut layout = Layout::new(CoordinateSystem::PositiveYUp);
-        // By default, layout is initialized with the default layout settings. This call is redundant, but
-        // demonstrates setting the value with your custom settings.
-        layout.reset(&LayoutSettings {
-            ..LayoutSettings::default()
-        });
-        // The text that will be laid out, its size, and the index of the font in the font list to use for
-        // that section of text.
-        layout.append(fonts, &TextStyle::new("Hello ", 35.0, 0));
-        layout.append(fonts, &TextStyle::new("world!", 40.0, 0));
-        // Prints the layout for "Hello world!"
-        println!("{:?}", layout.glyphs());
-
-        let mut layout = Layout::new(CoordinateSystem::PositiveYUp);
-        layout.append(fonts, &TextStyle::with_user_data("Hello ", 35.0, 0, 10u8));
-        layout.append(fonts, &TextStyle::with_user_data("world!", 40.0, 0, 20u8));
-        println!("{:?}", layout.glyphs());
-
-    }
 }
