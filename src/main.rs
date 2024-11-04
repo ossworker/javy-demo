@@ -1,7 +1,7 @@
 extern crate core;
 use std::env;
 use std::ffi::{c_void, CStr, CString};
-use std::io::Write;
+use std::io::{stdin, Read};
 use std::path::PathBuf;
 use std::time::Instant;
 use wamr_rust_sdk::function::Function;
@@ -57,19 +57,17 @@ async fn main() {
     // drop(store);
 }
 
-
-
-
 pub async fn run(js_content: &str, json: &str) -> anyhow::Result<()> {
     let now = Instant::now();
 
     let runtime = Runtime::builder()
         .use_system_allocator()
         .register_host_function("extra", extra as *mut c_void)
-        .build().unwrap();
+        .build()
+        .unwrap();
 
     let x = test_extra as *mut c_void;
-    println!("{:#?}",x);
+    // println!("{:#?}", x);
 
     let wamr_runtime = &runtime;
 
@@ -80,32 +78,39 @@ pub async fn run(js_content: &str, json: &str) -> anyhow::Result<()> {
     let mut module = Module::from_file(wamr_runtime, d.as_path())?;
 
     let wasi_ctx = WasiCtxBuilder::new()
-        .set_pre_open_path(vec!["."],vec![])
+        .set_pre_open_path(vec!["."], vec![])
         // .set_arguments(vec!["wasi-demo-app.wasm","daemon","hello"])
-        .set_arguments(vec!["wasi-demo-app.wasm","write","1.txt",js_content])
-        .set_env_vars(vec!["id=1","name=2"])
+        .set_arguments(vec!["wasi-demo-app.wasm", "write", "1.txt", js_content])
+        .set_env_vars(vec!["id=1", "name=2"])
         .build();
 
     module.set_wasi_context(wasi_ctx);
 
-    let instance = Instance::new_with_args(wamr_runtime,&module,1024 * 64,1024 * 64)?;
-
+    let instance = Instance::new_with_args(wamr_runtime, &module, 1024 * 64, 1024 * 64)?;
 
     // let function  = Function::find_export_func(&instance, "add")?;
 
-    let function  = Function::find_export_func(&instance, "_start")?;
+    let function = Function::find_export_func(&instance, "_start")?;
 
     let params: Vec<WasmValue> = vec![WasmValue::I32(92222222), WasmValue::I32(2122222222)];
 
+    let mut input = String::new();
+
     let result = function.call(&instance, &vec![WasmValue::I32(22)])?;
 
-    let range = String::from("{\"code\":11}").as_bytes().to_vec();
+    // let mut buf = Vec::new();
 
+    // stdin().read_to_end(&mut buf).expect("read error");
+
+    stdin().read_to_string(&mut input).expect("msg");
+
+    println!("read console:{:#?}", &input);
+
+    // let range = String::from("{\"code\":11}").as_bytes().to_vec();
 
     // let result = &result.encode()[0];
 
     println!("output:{:#?}", result);
-
 
     // let evaluate_response: EvaluateResponse = serde_json::from_slice(wasm_output.data.as_slice()).unwrap();
     // println!("evaluate_response:{:#?}", evaluate_response);
@@ -113,28 +118,30 @@ pub async fn run(js_content: &str, json: &str) -> anyhow::Result<()> {
     let first_end = now.elapsed().as_millis();
     println!("init cost:{:?}ms", first_end);
 
-    let c_string = CString::new(&*js_content.as_bytes().to_vec())?;
+    // let c_string = CString::new(&*js_content.as_bytes().to_vec())?;
 
-    let c_char = c_string.as_ptr();
+    // let c_char = c_string.as_ptr();
 
-    println!("cstring ptr {:#?}", &c_char);
+    // println!("cstring ptr {:#?}", &c_char);
 
-    let cstr = unsafe { CStr::from_ptr(c_char) };
-    let string = String::from_utf8_lossy(cstr.to_bytes()).to_string();
+    // let cstr = unsafe { CStr::from_ptr(c_char) };
+    // let string = String::from_utf8_lossy(cstr.to_bytes()).to_string();
 
-    println!("cstring {:#?}", string);
+    // println!("cstring {:#?}", string);
 
     Ok(())
-
 }
 
 #[cfg(test)]
 mod tests {
+    use fontdue::layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle};
     use std::ffi::CString;
     use std::time::Instant;
-    use fontdue::layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle};
     use wamr_rust_sdk::runtime::Runtime;
-    use wamr_rust_sdk::sys::{wasm_runtime_addr_app_to_native, wasm_runtime_free, wasm_runtime_malloc, wasm_runtime_module_malloc};
+    use wamr_rust_sdk::sys::{
+        wasm_runtime_addr_app_to_native, wasm_runtime_free, wasm_runtime_malloc,
+        wasm_runtime_module_malloc,
+    };
 
     #[test]
     fn test_runtime_builder_interpreter() {
@@ -144,8 +151,6 @@ mod tests {
             .build();
         assert!(runtime.is_ok());
 
-
-
         let small_buf = unsafe { wasm_runtime_malloc(16) };
         println!("{:#?}", &small_buf);
         assert!(!small_buf.is_null());
@@ -153,7 +158,7 @@ mod tests {
 
         let small_buf1 = unsafe { wasm_runtime_malloc(16) };
 
-        unsafe { wasm_runtime_addr_app_to_native(small_buf, small_buf1)};
+        unsafe { wasm_runtime_addr_app_to_native(small_buf, small_buf1) };
 
         let align = std::mem::align_of::<usize>();
         let layout = unsafe { std::alloc::Layout::from_size_align_unchecked(usize, align) };
@@ -195,5 +200,4 @@ mod tests {
         let duration = end_time.duration_since(start_time);
         println!("耗时: {:?}", duration.as_millis());
     }*/
-
 }
