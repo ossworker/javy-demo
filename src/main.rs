@@ -1,4 +1,3 @@
-extern crate core;
 use std::env;
 use std::ffi::{c_void, CStr, CString};
 use std::io::{stdin, Read};
@@ -134,7 +133,6 @@ pub async fn run(js_content: &str, json: &str) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use fontdue::layout::{CoordinateSystem, Layout, LayoutSettings, TextStyle};
     use std::ffi::CString;
     use std::time::Instant;
     use wamr_rust_sdk::runtime::Runtime;
@@ -142,6 +140,7 @@ mod tests {
         wasm_runtime_addr_app_to_native, wasm_runtime_free, wasm_runtime_malloc,
         wasm_runtime_module_malloc,
     };
+    use wamr_rust_sdk::value::WasmValue;
 
     #[test]
     fn test_runtime_builder_interpreter() {
@@ -158,12 +157,12 @@ mod tests {
 
         let small_buf1 = unsafe { wasm_runtime_malloc(16) };
 
-        unsafe { wasm_runtime_addr_app_to_native(small_buf, small_buf1) };
+        // unsafe { wasm_runtime_addr_app_to_native(small_buf, small_buf1) };
 
-        let align = std::mem::align_of::<usize>();
-        let layout = unsafe { std::alloc::Layout::from_size_align_unchecked(usize, align) };
+        // let align = std::mem::align_of::<usize>();
+        // let layout = unsafe { std::alloc::Layout::from_size_align_unchecked(usize, align) };
 
-        std::alloc::alloc(layout);
+        // unsafe { std::alloc::alloc(layout) };
 
         unsafe { wasm_runtime_free(small_buf) };
 
@@ -200,4 +199,25 @@ mod tests {
         let duration = end_time.duration_since(start_time);
         println!("耗时: {:?}", duration.as_millis());
     }*/
+
+    #[test]
+    fn test_wasm_value() {
+        let input = String::from("{\"id\":1,\"name\":\"zs\"}");
+        let binary = input
+            .as_bytes()
+            .into_iter()
+            .map(|c| *c as u32)
+            .collect::<Vec<u32>>();
+
+        let w_value = WasmValue::decode_to_v128(binary);
+
+        let binary = w_value
+            .encode()
+            .into_iter()
+            .map(|c| c as u8)
+            .collect::<Vec<u8>>();
+
+        let result = String::from_utf8_lossy(&binary).to_string();
+        println!("result:{:#?}", result);
+    }
 }
