@@ -1,6 +1,6 @@
 use std::env;
 use std::ffi::{c_void, CStr, CString};
-use std::io::{stdin, Read};
+use std::io::{stdin, stdout, Read};
 use std::path::PathBuf;
 use std::time::Instant;
 use wamr_rust_sdk::function::Function;
@@ -147,6 +147,7 @@ mod tests {
         let runtime = Runtime::builder()
             .run_as_interpreter()
             .use_system_allocator()
+            .use_memory_pool(pool, pool_size)
             .build();
         assert!(runtime.is_ok());
 
