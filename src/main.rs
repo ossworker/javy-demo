@@ -83,6 +83,8 @@ pub async fn run(js_content: &str, json: &str) -> anyhow::Result<()> {
         .set_env_vars(vec!["id=1", "name=2"])
         .build();
 
+    // wasm_runtime_addr_native_to_app() wasm_runtime_addr_app_to_native(module_inst, app_offset)
+
     module.set_wasi_context(wasi_ctx);
 
     let instance = Instance::new_with_args(wamr_runtime, &module, 1024 * 64, 1024 * 64)?;
@@ -147,7 +149,6 @@ mod tests {
         let runtime = Runtime::builder()
             .run_as_interpreter()
             .use_system_allocator()
-            .use_memory_pool(pool, pool_size)
             .build();
         assert!(runtime.is_ok());
 
