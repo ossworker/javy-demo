@@ -135,7 +135,9 @@ pub async fn run(js_content: &str, json: &str) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
     use std::ffi::CString;
+    use std::path::Path;
     use std::time::Instant;
     use wamr_rust_sdk::runtime::Runtime;
     use wamr_rust_sdk::sys::{
@@ -204,6 +206,8 @@ mod tests {
 
     #[test]
     fn test_wasm_value() {
+        let current_dir = env::current_dir().unwrap();
+        println!("path:{:#?}", current_dir);
         let input = String::from("{\"id\":1,\"name\":\"zs\"}");
         let binary = input
             .as_bytes()
