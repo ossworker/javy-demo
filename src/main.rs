@@ -1,16 +1,11 @@
-
-
 use std::collections::HashMap;
 use std::env;
-use std::io::{Read, stderr, stdin, stdout, Write};
-use std::ops::Deref;
+use std::io::{stderr, stdin, stdout, Read, Write};
 use std::sync::{LazyLock, OnceLock};
 
-use javy::{Config, json, quickjs, Runtime};
+use javy::{json, quickjs, Config, Runtime};
 use regex::Regex;
 use serde::Deserialize;
-
-
 
 mod handler;
 
@@ -20,9 +15,7 @@ static POLYFILL: &str = include_str!("../shims/index.js");
 
 // static mut RUNTIME: OnceLock<Runtime> = OnceLock::new();
 
-static mut RUNTIME: LazyLock<Runtime> = LazyLock::new(|| {
-    precompile()
-});
+static mut RUNTIME: LazyLock<Runtime> = LazyLock::new(|| precompile());
 
 #[export_name = "wizer.initialize"]
 pub extern "C" fn init() {
@@ -30,7 +23,6 @@ pub extern "C" fn init() {
 }
 
 fn precompile() -> Runtime {
-
     let runtime = Runtime::new(Default::default()).unwrap();
     // Precompile the Polyfill to bytecode
     let context = runtime.context();
@@ -43,7 +35,9 @@ fn precompile() -> Runtime {
         .compile_to_bytecode("big.js", include_str!("script/big.js"))
         .unwrap();
 
-    let bytecode = runtime.compile_to_bytecode("polyfill.js", POLYFILL).unwrap();
+    let bytecode = runtime
+        .compile_to_bytecode("polyfill.js", POLYFILL)
+        .unwrap();
     // Preload it
     // let _ = context.eval_binary(&bytecode).expect("load polyfill error");
     runtime
@@ -72,8 +66,8 @@ fn identify_type(src: &str) -> JSWorkerType {
     }
 }
 
-#[derive(Debug,Deserialize)]
-struct WasmInput{
+#[derive(Debug, Deserialize)]
+struct WasmInput {
     js_content: String,
     body: String,
 }
@@ -111,18 +105,17 @@ fn main() {
 
     contents.push_str(&input.js_content);
 
-
-
-
     match identify_type(&contents) {
         JSWorkerType::DefaultExport => {
             context.with(|ctx| {
                 // let globals = ctx.globals();
                 // ctx.eval_with_options(&*contents, Default::default()).unwrap();
-                quickjs::Module::evaluate(ctx.clone(),
-                                          "runtime.mjs",
-                                          "import {default as handler} from 'handler.mjs';__addHandler(handler.handler);"
-                ).unwrap();
+                quickjs::Module::evaluate(
+                    ctx.clone(),
+                    "runtime.mjs",
+                    "import {default as handler} from 'handler.mjs';__addHandler(handler.handler);",
+                )
+                .unwrap();
             });
         }
         _ => {
@@ -131,9 +124,6 @@ fn main() {
             // });
         }
     }
-
-
-
 
     // let global = context.global_object().unwrap();
     // let entrypoint = global.get_property("entrypoint").unwrap();
@@ -172,16 +162,18 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use std::env::vars;
     use anyhow::{anyhow, Error};
-    use javy::{Runtime, from_js_error, hold_and_release, hold, to_js_error, json, val_to_string, Config, to_string_lossy};
-    use javy::quickjs::{Ctx, Function, String as JString, String, Value};
     use javy::quickjs::context::EvalOptions;
     use javy::quickjs::function::{IntoArgs, MutFn, Rest};
-
+    use javy::quickjs::{Ctx, Function, String as JString, String, Value};
+    use javy::{
+        from_js_error, hold, hold_and_release, json, to_js_error, to_string_lossy, val_to_string,
+        Config, Runtime,
+    };
+    use std::env::vars;
 
     #[test]
-    fn test_javy(){
+    fn test_javy() {
         let runtime = Runtime::default();
         let context = runtime.context();
 
@@ -200,7 +192,9 @@ mod tests {
 
         context.with(|this| {
             let mut eval_opts = EvalOptions::default();
-            let f: Function = this.eval("() => { console.log(JSON.stringify({id:111})); return 42;}").unwrap();
+            let f: Function = this
+                .eval("() => { console.log(JSON.stringify({id:111})); return 42;}")
+                .unwrap();
 
             let res: i32 = ().apply(&f).unwrap();
             assert_eq!(res, 42);
@@ -209,30 +203,29 @@ mod tests {
             assert_eq!(res, 42);
             eval_opts.strict = false;
 
-            let json_fun: Function = this.eval(r#"() => {
+            let json_fun: Function = this
+                .eval(
+                    r#"() => {
                 console.log("----");
                 //console.log("="+JSON.stringify({id:111}));
                 const jsonStr = JSON.stringify({id:111});
                 console.log("=="+jsonStr);
                 return "111";
             }
-            "#).unwrap();
+            "#,
+                )
+                .unwrap();
 
             // let result: String = json_fun.call(()).unwrap();
-            let result = json_fun.call::<(),String>(())
-               .unwrap();
+            let result = json_fun.call::<(), String>(()).unwrap();
             println!("{:#?}", result);
-
-
         });
-
     }
-
 
     #[test]
     fn test_random() -> anyhow::Result<()> {
         let mut config = Config::default();
-        config.override_json_parse_and_stringify(true);
+        config.operator_overloading(true);
 
         let runtime = Runtime::new(config).expect("runtime to be created");
         runtime.context().with(|this| {
@@ -250,31 +243,31 @@ mod tests {
             assert!(result >= 0.0);
             assert!(result < 1.0);
 
-            let quickjs_result: javy::quickjs::Result<String> = this.eval_with_options("result = JSON.stringify({id:111});", EvalOptions::default());
+            let quickjs_result: javy::quickjs::Result<String> = this
+                .eval_with_options("result = JSON.stringify({id:111});", EvalOptions::default());
 
-            let binding:Value = this
-                .globals()
-                .get::<&str, Value<'_>>("result")
-                .unwrap();
+            let binding: Value = this.globals().get::<&str, Value<'_>>("result").unwrap();
 
             let err_msg = val_to_string(&this, this.catch()).unwrap();
-
 
             // let str = String::from_utf8(json::stringify(binding)?)?;
             // // let str = JString::from_str(this.clone(), &str)?;
             println!("global var: {:#?}", val_to_string(&this, binding).unwrap());
 
-
             println!("{:#?} {:#?}", quickjs_result.is_ok(), err_msg);
 
-
-            let json_fun: Function = this.clone().eval(r#"() => {
+            let json_fun: Function = this
+                .clone()
+                .eval(
+                    r#"() => {
                 const st = JSON.stringify({id:111});
                 console.log(st+"--");
                 return st;
              }
-         "#).unwrap();
-            let result: String = json_fun.call::<(),String>(()).unwrap();
+         "#,
+                )
+                .unwrap();
+            let result: String = json_fun.call::<(), String>(()).unwrap();
             println!("fun:{:#?}", result);
 
             Ok::<_, Error>(())
