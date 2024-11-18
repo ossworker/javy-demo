@@ -177,18 +177,19 @@ mod tests {
         let runtime = Runtime::default();
         let context = runtime.context();
 
-        // context.with(|cx| {
-        //     let globals = cx.globals();
-        //     globals.set(
-        //         "print_hello",
-        //         Function::new(
-        //             cx.clone(),
-        //             MutFn::new(move |cx: Ctx, args: Rest<Value>| {
-        //                 println!("hello")
-        //             }),
-        //         ).expect("1111111"),
-        //     ).expect("22222");
-        // });
+
+        context.with(|cx| {
+            let globals = cx.globals();
+            globals.set(
+                "print_hello",
+                Function::new(
+                    cx.clone(),
+                    MutFn::new(move |cx: Ctx, args: Rest<Value>| {
+                        println!("hello")
+                    }),
+                ).expect("1111111"),
+            ).expect("22222");
+        });
 
         context.with(|this| {
             let mut eval_opts = EvalOptions::default();

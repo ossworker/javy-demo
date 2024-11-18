@@ -11,12 +11,15 @@ version = "0.1.0"
 [dependencies]
 #bitflags = "2.6"
 wit-bindgen-rt = {version = "0.35", features = ["bitflags"]}
-#javy = { version = "2.2", features = ["json"] }
 anyhow = "1.0"
 javy = {version = "3", features = ["json"]}
 regex = "1.11"
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
+#llrt_modules = { git = "https://github.com/awslabs/llrt" }
+
+[features]
+default = []
 
 #[profile.dev]
 #debug = false
