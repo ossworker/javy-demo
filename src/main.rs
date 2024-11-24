@@ -4,6 +4,8 @@ use std::io::{stderr, stdin, stdout, Read, Write};
 use std::sync::{LazyLock, OnceLock};
 
 use javy::{json, quickjs, Config, Runtime};
+// use javy::quickjs::loader::{BuiltinResolver, ModuleLoader};
+// use llrt_modules::os::OsModule;
 use regex::Regex;
 use serde::Deserialize;
 
@@ -17,10 +19,22 @@ static POLYFILL: &str = include_str!("../shims/index.js");
 
 static mut RUNTIME: LazyLock<Runtime> = LazyLock::new(|| precompile());
 
-#[export_name = "wizer.initialize"]
-pub extern "C" fn init() {
+#[export_name = "initialize_runtime"]
+pub extern "C" fn initialize_runtime() {
     let _ = unsafe { &*RUNTIME };
 }
+
+// #[export_name = "initialize_runtime"]
+// pub extern "C" fn initialize_runtime() {
+//     let runtime = unsafe { &*RUNTIME };
+//     let qjs_runtime = javy::quickjs::Runtime::new().unwrap();
+//     let loader = ModuleLoader::default()
+//                       .with_module("os", llrt_modules::os::OsModule);
+//     let resolver = BuiltinResolver::default()
+//         .with_module("os");
+//
+//     qjs_runtime.set_loader(resolver, loader);
+// }
 
 fn precompile() -> Runtime {
     let runtime = Runtime::new(Default::default()).unwrap();
@@ -38,6 +52,7 @@ fn precompile() -> Runtime {
     let bytecode = runtime
         .compile_to_bytecode("polyfill.js", POLYFILL)
         .unwrap();
+
     // Preload it
     // let _ = context.eval_binary(&bytecode).expect("load polyfill error");
     runtime
@@ -226,9 +241,12 @@ mod tests {
     #[test]
     fn test_random() -> anyhow::Result<()> {
         let mut config = Config::default();
+
         config.operator_overloading(true);
 
         let runtime = Runtime::new(config).expect("runtime to be created");
+
+
         runtime.context().with(|this| {
             let mut eval_opts = EvalOptions::default();
             eval_opts.strict = false;

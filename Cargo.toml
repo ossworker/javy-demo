@@ -1,3 +1,5 @@
+cargo-features = ["edition2024"]
+
 [package]
 edition = "2021"
 name = "javy-demo"
@@ -11,6 +13,9 @@ version = "0.1.0"
 [dependencies]
 #bitflags = "2.6"
 wit-bindgen-rt = {version = "0.35", features = ["bitflags"]}
+
+#rquickjs = {version = "0.8", features = ["futures","full"],optional = true}
+
 anyhow = "1.0"
 javy = {version = "3", features = ["json"]}
 regex = "1.11"
